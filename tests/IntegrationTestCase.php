@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Tests;
 
+use AndyDefer\Directive\DirectiveServiceProvider;
 use AndyDefer\Repository\RepositoryServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -12,6 +13,7 @@ abstract class IntegrationTestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            DirectiveServiceProvider::class,
             RepositoryServiceProvider::class,
         ];
     }
