@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AndyDefer\Repository\Tests\Fixtures\Records;
+
+use AndyDefer\Records\AbstractRecord;
+use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserGrade;
+use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserRole;
+use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserStatus;
+
+final class TestUserRecord extends AbstractRecord
+{
+    public function __construct(
+        public readonly ?string $name = null,
+        public readonly ?string $email = null,
+        public readonly ?TestUserStatus $status = null,
+        public readonly ?TestUserRole $role = null,
+        public readonly ?TestUserGrade $grade = null,
+    ) {}
+}
