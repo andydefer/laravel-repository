@@ -6,8 +6,6 @@ namespace {{ namespace }};
 
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Records\Recordable;
-use {{ record_namespace }}\\{{ record_class }};
-use {{ filters_namespace }}\\{{ filters_class }};
 use App\Models\{{ model_class }};
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,18 +13,17 @@ final class {{ class }} extends AbstractRepository
 {
     public function __construct()
     {
+        // TODO: Replace {{ model_class }}::class with your actual model class
+        // TODO: Replace {{ record_class }}::class with your actual record class
         parent::__construct({{ model_class }}::class, {{ record_class }}::class);
     }
 
     protected function applyFilters(Builder $query, Recordable $filters): void
     {
-        if (!$filters instanceof {{ filters_class }}) {
-            return;
-        }
-
+        // TODO: Check if filters is an instance of your filters class
         // TODO: Implement your filter logic here
         // Example:
-        // if ($filters->name !== null) {
+        // if (property_exists($filters, 'name') && $filters->name !== null) {
         //     $query->where('name', 'like', '%' . $filters->name . '%');
         // }
     }
