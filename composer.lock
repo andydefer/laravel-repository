@@ -4,71 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "de58471a5e9f0a4b8e4f34a25a97fdba",
+    "content-hash": "554fba1b037f0941f53d03e120c3c989",
     "packages": [
-        {
-            "name": "andydefer/laravel-directive",
-            "version": "1.0.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "4c431aa889ce8a359d7094d5172084bb71435c57"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/4c431aa889ce8a359d7094d5172084bb71435c57",
-                "reference": "4c431aa889ce8a359d7094d5172084bb71435c57",
-                "shasum": ""
-            },
-            "require": {
-                "andydefer/php-records": "^1.0",
-                "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
-                "php": ">=8.1"
-            },
-            "require-dev": {
-                "barryvdh/laravel-ide-helper": "^3.6",
-                "composer/composer": "^2.0",
-                "larastan/larastan": "^3.8",
-                "laravel/pint": "^1.26",
-                "orchestra/testbench": "^10.8",
-                "phpunit/phpunit": "^12.5",
-                "rector/rector": "*",
-                "symfony/var-dumper": "^7.0",
-                "vimeo/psalm": "^6.14"
-            },
-            "bin": [
-                "bin/directive"
-            ],
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "AndyDefer\\Directive\\DirectiveServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "AndyDefer\\Directive\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Andy Defer",
-                    "email": "andykanidimbu@gmail.com"
-                }
-            ],
-            "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
-            "support": {
-                "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/1.0.0"
-            },
-            "time": "2026-05-24T15:02:09+00:00"
-        },
         {
             "name": "andydefer/php-records",
             "version": "1.0.0",
