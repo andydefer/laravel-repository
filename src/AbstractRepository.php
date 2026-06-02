@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository;
 
-use AndyDefer\Records\EmptyRecord;
-use AndyDefer\Records\Recordable;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\DomainStructures\Utils\EmptyRecord;
 use AndyDefer\Repository\Exceptions\ModelNotFoundException;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
 
 /**
  * @template TModel of Model
- * @template TRecord of Recordable
+ * @template TRecord of AbstractRecord
  *
  * @implements AbstractRepositoryInterface<TModel, TRecord>
  */
@@ -55,9 +55,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  TRecord  $record
      * @return TModel
      */
-    public function create(Recordable $record): Model
+    public function create(AbstractRecord $record): Model
     {
-        $data = $record->toDatabase();
+        $data = $record->toArrayWithoutNulls();
         /** @var TModel $model */
         $model = $this->model->newQuery()->create($data);
 
@@ -102,7 +102,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @throws \RuntimeException
      */
-    public function update(int $id, Recordable $record): Model
+    public function update(int $id, AbstractRecord $record): Model
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
@@ -112,7 +112,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         }
 
         $data = array_filter(
-            $record->toDatabase(),
+            $record->toArrayWithoutNulls(),
             fn ($value) => $value !== null
         );
 
@@ -136,7 +136,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return (bool) $model->delete();
     }
 
-    public function count(?Recordable $criteria = null): int
+    public function count(?AbstractRecord $criteria = null): int
     {
         if ($criteria === null) {
             return $this->model->newQuery()->count();
@@ -145,7 +145,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return $this->buildQuery($criteria)->count();
     }
 
-    public function exists(Recordable $criteria): bool
+    public function exists(AbstractRecord $criteria): bool
     {
         return $this->buildQuery($criteria)->exists();
     }
@@ -172,7 +172,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return $result;
     }
 
-    public function deleteBulk(Recordable $criteria): int
+    public function deleteBulk(AbstractRecord $criteria): int
     {
         return $this->buildQuery($criteria)->delete();
     }
@@ -182,7 +182,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return Builder<TModel>
      */
-    protected function buildQuery(Recordable $filters): Builder
+    protected function buildQuery(AbstractRecord $filters): Builder
     {
         $query = $this->model->newQuery();
 
@@ -201,8 +201,5 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @param  Builder<TModel>  $query
      */
-    protected function applyFilters(Builder $query, Recordable $filters): void
-    {
-        // Override in concrete repositories
-    }
+    abstract protected function applyFilters(Builder $query, AbstractRecord $filters): void;
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository;
 
-use AndyDefer\Records\Recordable;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\Records\RepositoryInfoRecord;
@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 
 /**
  * @template TModel of Model
- * @template TRecord of Recordable
+ * @template TRecord of AbstractRecord
  */
 interface AbstractRepositoryInterface
 {
@@ -27,7 +27,7 @@ interface AbstractRepositoryInterface
      * @param  TRecord  $record
      * @return TModel
      */
-    public function create(Recordable $record): Model;
+    public function create(AbstractRecord $record): Model;
 
     /**
      * @return TModel|null
@@ -45,18 +45,18 @@ interface AbstractRepositoryInterface
      *
      * @throws \RuntimeException
      */
-    public function update(int $id, Recordable $record): Model;
+    public function update(int $id, AbstractRecord $record): Model;
 
     public function delete(int $id): bool;
 
-    public function count(?Recordable $criteria = null): int;
+    public function count(?AbstractRecord $criteria = null): int;
 
-    public function exists(Recordable $criteria): bool;
+    public function exists(AbstractRecord $criteria): bool;
 
     /**
      * @return LengthAwarePaginator<TModel>
      */
     public function paginate(PaginateRecord $record): LengthAwarePaginator;
 
-    public function deleteBulk(Recordable $criteria): int;
+    public function deleteBulk(AbstractRecord $criteria): int;
 }

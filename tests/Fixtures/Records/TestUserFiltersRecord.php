@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Tests\Fixtures\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserGrade;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserRole;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserStatus;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Tests\Integration;
 
-use AndyDefer\Records\EmptyRecord;
+use AndyDefer\DomainStructures\Utils\EmptyRecord;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserGrade;

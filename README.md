@@ -58,7 +58,7 @@ return [
 Un Record est un DTO typé qui sert d'interface entre votre code et le Repository.
 
 ```php
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
 final class UserRecord extends AbstractRecord
 {
@@ -165,7 +165,7 @@ final class User extends Model
 
 namespace App\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
 final class UserRecord extends AbstractRecord
 {
@@ -184,7 +184,7 @@ final class UserRecord extends AbstractRecord
 
 namespace App\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
 final class UserFiltersRecord extends AbstractRecord
 {

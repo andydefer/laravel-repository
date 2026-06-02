@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "554fba1b037f0941f53d03e120c3c989",
+    "content-hash": "fc7cc2d1de4d7e6166037df424e47efa",
     "packages": [
         {
-            "name": "andydefer/php-records",
-            "version": "1.0.0",
+            "name": "andydefer/domain-structures",
+            "version": "1.14.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/andydefer/php-records.git",
-                "reference": "61422baa20f270bd2ce1cfd31fe3f0f60141a5f4"
+                "url": "https://github.com/andydefer/domain-structures.git",
+                "reference": "690c47951c1d603d254ed5cd8277a9d5808ef04b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/php-records/zipball/61422baa20f270bd2ce1cfd31fe3f0f60141a5f4",
-                "reference": "61422baa20f270bd2ce1cfd31fe3f0f60141a5f4",
+                "url": "https://api.github.com/repos/andydefer/domain-structures/zipball/690c47951c1d603d254ed5cd8277a9d5808ef04b",
+                "reference": "690c47951c1d603d254ed5cd8277a9d5808ef04b",
                 "shasum": ""
             },
             "require": {
@@ -37,7 +37,7 @@
             "type": "library",
             "autoload": {
                 "psr-4": {
-                    "AndyDefer\\Records\\": "src/"
+                    "AndyDefer\\DomainStructures\\": "src/"
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
@@ -46,16 +46,16 @@
             ],
             "authors": [
                 {
-                    "name": "Andy Kani",
+                    "name": "Andy Defer",
                     "email": "andykanidimbu@gmail.com"
                 }
             ],
-            "description": "A typed data structure package that brings type safety to internal application communication in PHP.",
+            "description": "A complete domain structures package for PHP: Records, Value Objects, Data DTOs, and TypedCollections. Brings type safety and clean architecture to your application.",
             "support": {
-                "issues": "https://github.com/andydefer/php-records/issues",
-                "source": "https://github.com/andydefer/php-records/tree/1.0.0"
+                "issues": "https://github.com/andydefer/domain-structures/issues",
+                "source": "https://github.com/andydefer/domain-structures/tree/1.14.0"
             },
-            "time": "2026-05-24T04:29:38+00:00"
+            "time": "2026-06-02T11:15:50+00:00"
         },
         {
             "name": "brick/math",

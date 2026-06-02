@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Records;
 
-use AndyDefer\Records\AbstractRecord;
-use AndyDefer\Records\EmptyRecord;
-use AndyDefer\Records\Recordable;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\DomainStructures\Utils\EmptyRecord;
 
 final class PaginateRecord extends AbstractRecord
 {
@@ -15,7 +14,7 @@ final class PaginateRecord extends AbstractRecord
         public readonly int $page = 1,
         public readonly ?string $sortBy = null,
         public readonly string $sortDir = 'asc',
-        public readonly Recordable $filters = new EmptyRecord,
+        public readonly AbstractRecord $filters = new EmptyRecord,
         public readonly array $columns = ['*'],
     ) {}
 }

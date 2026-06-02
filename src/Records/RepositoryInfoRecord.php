@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
 /**
  * @template TModel of \Illuminate\Database\Eloquent\Model
- * @template TRecord of \AndyDefer\Records\Recordable
+ * @template TRecord of \AndyDefer\Records\AbstractRecord
  */
 final class RepositoryInfoRecord extends AbstractRecord
 {

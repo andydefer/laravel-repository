@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Tests\Fixtures\Repositories;
 
-use AndyDefer\Records\Recordable;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Tests\Fixtures\Models\TestUser;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserFiltersRecord;
@@ -21,7 +21,7 @@ final class TestUserRepository extends AbstractRepository
         parent::__construct(TestUser::class, TestUserRecord::class);
     }
 
-    protected function applyFilters(Builder $query, Recordable $filters): void
+    protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
         if (! $filters instanceof TestUserFiltersRecord) {
             return;
