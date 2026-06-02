@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
+ * Abstract repository implementation with common CRUD operations.
+ *
  * @template TModel of Model
  * @template TRecord of AbstractRecord
  *
@@ -41,6 +43,8 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * Get repository information.
+     *
      * @return RepositoryInfoRecord<TModel, TRecord>
      */
     public function info(): RepositoryInfoRecord
@@ -52,6 +56,8 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * Create a new model from a record.
+     *
      * @param  TRecord  $record
      * @return TModel
      */
@@ -65,6 +71,8 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * Find a model by its ID.
+     *
      * @return TModel|null
      */
     public function find(int $id): ?Model
@@ -76,14 +84,19 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * Find models matching the given criteria.
+     *
      * @return Collection<int, TModel>
      */
     public function findBy(FindByRecord $record): Collection
     {
         $query = $this->buildQuery($record->filters);
 
+        $columns = $record->columns->toArray();
+        $query->select($columns);
+
         if ($record->sortBy !== null) {
-            $query->orderBy($record->sortBy, $record->sortDir);
+            $query->orderBy($record->sortBy, $record->sortDir->toSql());
         }
 
         if ($record->limit !== null) {
@@ -91,16 +104,18 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         }
 
         /** @var Collection<int, TModel> $result */
-        $result = $query->get($record->columns);
+        $result = $query->get();
 
         return $result;
     }
 
     /**
+     * Update a model by ID with record data.
+     *
      * @param  TRecord  $record
      * @return TModel
      *
-     * @throws \RuntimeException
+     * @throws ModelNotFoundException
      */
     public function update(int $id, AbstractRecord $record): Model
     {
@@ -124,6 +139,11 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return $model;
     }
 
+    /**
+     * Delete a model by ID.
+     *
+     * @return bool True if deleted, false if not found
+     */
     public function delete(int $id): bool
     {
         /** @var TModel|null $model */
@@ -136,6 +156,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return (bool) $model->delete();
     }
 
+    /**
+     * Count models matching the given criteria.
+     */
     public function count(?AbstractRecord $criteria = null): int
     {
         if ($criteria === null) {
@@ -145,26 +168,33 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return $this->buildQuery($criteria)->count();
     }
 
+    /**
+     * Check if any model matches the given criteria.
+     */
     public function exists(AbstractRecord $criteria): bool
     {
         return $this->buildQuery($criteria)->exists();
     }
 
     /**
+     * Paginate results matching the given criteria.
+     *
      * @return LengthAwarePaginator<TModel>
      */
     public function paginate(PaginateRecord $record): LengthAwarePaginator
     {
         $query = $this->buildQuery($record->filters);
 
+        $columns = $record->columns->toArray();
+
         if ($record->sortBy !== null) {
-            $query->orderBy($record->sortBy, $record->sortDir);
+            $query->orderBy($record->sortBy, $record->sortDir->toSql());
         }
 
         /** @var LengthAwarePaginator<TModel> $result */
         $result = $query->paginate(
             perPage: $record->perPage,
-            columns: $record->columns,
+            columns: $columns,
             pageName: 'page',
             page: $record->page
         );
@@ -172,6 +202,11 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         return $result;
     }
 
+    /**
+     * Delete multiple models matching the given criteria.
+     *
+     * @return int Number of deleted records
+     */
     public function deleteBulk(AbstractRecord $criteria): int
     {
         return $this->buildQuery($criteria)->delete();

@@ -1,10 +1,12 @@
+Voici la traduction complète du document en français :
+
 # Laravel Repository
 
-**A lightweight, type-safe repository pattern implementation for Laravel with Records and Eloquent integration.**
+**Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records et Eloquent.**
 
-[![PHP Version](https://img.shields.io/badge/PHP-8.1%2B-blue)](https://php.net)
-[![Laravel Version](https://img.shields.io/badge/Laravel-12.x%20%7C%2013.x%20%7C%2014.x%20%7C%2015.x-blue)](https://laravel.com)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Version PHP](https://img.shields.io/badge/PHP-8.1%2B-blue)](https://php.net)
+[![Version Laravel](https://img.shields.io/badge/Laravel-12.x%20|%2013.x%20|%2014.x%20|%2015.x-blue)](https://laravel.com)
+[![Licence](https://img.shields.io/badge/Licence-MIT-green)](LICENSE)
 
 ---
 
@@ -22,7 +24,7 @@ composer require andydefer/laravel-repository
   - `andydefer/php-records` (structures typées)
   - `laravel/framework`
 
-### Publication de la configuration (optionnel)
+### Publier la configuration (Optionnel)
 
 ```bash
 php artisan vendor:publish --tag=repository-config
@@ -30,26 +32,6 @@ php artisan vendor:publish --tag=repository-config
 
 ---
 
-## Configuration
-
-```php
-// config/repository.php
-return [
-    // Namespace par défaut pour les repositories
-    'namespace' => 'App\\Repositories',
-
-    // Namespace par défaut pour les Records
-    'record_namespace' => 'App\\Records',
-
-    // Nombre d'éléments par page par défaut
-    'default_per_page' => 15,
-
-    // Nombre maximum d'éléments par page
-    'max_per_page' => 100,
-];
-```
-
----
 
 ## Concepts fondamentaux
 
@@ -73,11 +55,11 @@ final class UserRecord extends AbstractRecord
 **Règles pour les Records :**
 - ✅ Étendre `AbstractRecord`
 - ✅ Propriétés `public readonly`
-- ✅ Champs optionnels = `null` par défaut
+- ✅ Les champs optionnels = `null` par défaut
 - ❌ Pas de logique métier
-- ❌ Pas de tableau brut (utiliser `TypedCollection`)
+- ❌ Pas de tableaux bruts (utiliser `TypedCollection`)
 
-### Les Records de configuration
+### Records de configuration
 
 Le package fournit des Records standardisés pour les opérations :
 
@@ -90,18 +72,18 @@ $findBy = new FindByRecord(
     filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
     limit: 10,
     sortBy: 'name',
-    sortDir: 'asc',
-    columns: ['id', 'name', 'email'],
+    sortDir: SortDirection::ASC,
+    columns: new SelectColumns(['id', 'name', 'email']),
 );
 ```
 
 | Propriété | Type | Défaut | Description |
 |-----------|------|--------|-------------|
-| `filters` | `Recordable` | `EmptyRecord` | Filtres de recherche |
+| `filters` | `AbstractRecord` | `EmptyRecord` | Filtres de recherche |
 | `limit` | `?int` | `null` | Limite de résultats |
 | `sortBy` | `?string` | `null` | Champ de tri |
-| `sortDir` | `string` | `'asc'` | Direction du tri |
-| `columns` | `array` | `['*']` | Colonnes à sélectionner |
+| `sortDir` | `SortDirection` | `SortDirection::ASC` | Direction du tri |
+| `columns` | `SelectColumns` | `SelectColumns::all()` | Colonnes à sélectionner |
 
 #### PaginateRecord
 
@@ -112,9 +94,9 @@ $paginate = new PaginateRecord(
     perPage: 15,
     page: 1,
     sortBy: 'name',
-    sortDir: 'asc',
+    sortDir: SortDirection::ASC,
     filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
-    columns: ['id', 'name', 'email'],
+    columns: new SelectColumns(['id', 'name', 'email']),
 );
 ```
 
@@ -123,9 +105,9 @@ $paginate = new PaginateRecord(
 | `perPage` | `int` | `15` | Éléments par page |
 | `page` | `int` | `1` | Numéro de page |
 | `sortBy` | `?string` | `null` | Champ de tri |
-| `sortDir` | `string` | `'asc'` | Direction du tri |
-| `filters` | `Recordable` | `EmptyRecord` | Filtres de recherche |
-| `columns` | `array` | `['*']` | Colonnes à sélectionner |
+| `sortDir` | `SortDirection` | `SortDirection::ASC` | Direction du tri |
+| `filters` | `AbstractRecord` | `EmptyRecord` | Filtres de recherche |
+| `columns` | `SelectColumns` | `SelectColumns::all()` | Colonnes à sélectionner |
 
 #### RepositoryInfoRecord
 
@@ -139,11 +121,50 @@ $info = $repository->info();
 // }
 ```
 
+### Énumération SortDirection
+
+```php
+use AndyDefer\Repository\Enums\SortDirection;
+
+$direction = SortDirection::ASC;
+
+$direction->isAsc();     // true
+$direction->isDesc();    // false
+$direction->opposite();  // SortDirection::DESC
+$direction->toSql();     // 'asc'
+```
+
+### Objet Valeur SelectColumns
+
+```php
+use AndyDefer\Repository\ValueObjects\SelectColumns;
+
+// Créer avec des colonnes spécifiques
+$columns = new SelectColumns(['id', 'name', 'email']);
+
+// Sélectionner toutes les colonnes
+$allColumns = SelectColumns::all();
+
+// Ajouter des colonnes (retourne une nouvelle instance)
+$extended = $columns->add('created_at', 'updated_at');
+
+// Vérifier si une colonne existe
+if ($columns->has('email')) {
+    // ...
+}
+
+// Obtenir le nombre
+$count = $columns->count();  // 3
+
+// Convertir en tableau
+$array = $columns->toArray();  // ['id', 'name', 'email']
+```
+
 ---
 
 ## Créer votre premier Repository
 
-### 1. Créer le Model
+### 1. Créer le Modèle
 
 ```php
 <?php
@@ -177,7 +198,7 @@ final class UserRecord extends AbstractRecord
 }
 ```
 
-### 3. Créer le Record de filtres (optionnel)
+### 3. Créer le Record de filtres (Optionnel)
 
 ```php
 <?php
@@ -204,7 +225,7 @@ final class UserFiltersRecord extends AbstractRecord
 namespace App\Repositories;
 
 use AndyDefer\Repository\AbstractRepository;
-use AndyDefer\Records\Recordable;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use App\Models\User;
 use App\Records\UserRecord;
 use App\Records\UserFiltersRecord;
@@ -217,24 +238,23 @@ final class UserRepository extends AbstractRepository
         parent::__construct(User::class, UserRecord::class);
     }
 
-    protected function applyFilters(Builder $query, Recordable $filters): void
+    protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
-        // TODO: Vérifier que $filters est une instance de votre classe de filtres
-        // Exemple: if (!$filters instanceof UserFiltersRecord) { return; }
+        if (!$filters instanceof UserFiltersRecord) {
+            return;
+        }
 
-        // TODO: Implémenter vos filtres ici
-        // Exemple: 
-        // if ($filters->name !== null) {
-        //     $query->where('name', 'like', '%' . $filters->name . '%');
-        // }
-        //
-        // if ($filters->email !== null) {
-        //     $query->where('email', 'like', '%' . $filters->email . '%');
-        // }
-        //
-        // if ($filters->status !== null) {
-        //     $query->where('status', $filters->status);
-        // }
+        if ($filters->name !== null) {
+            $query->where('name', 'like', '%' . $filters->name . '%');
+        }
+
+        if ($filters->email !== null) {
+            $query->where('email', 'like', '%' . $filters->email . '%');
+        }
+
+        if ($filters->status !== null) {
+            $query->where('status', $filters->status);
+        }
     }
 }
 ```
@@ -245,9 +265,9 @@ final class UserRepository extends AbstractRepository
 use App\Repositories\UserRepository;
 use App\Records\UserRecord;
 use App\Records\UserFiltersRecord;
-use App\Records\UserStatus;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
+use AndyDefer\Repository\Enums\SortDirection;
 
 class UserService
 {
@@ -271,13 +291,13 @@ class UserService
         return $this->repository->find($id);
     }
 
-    // Mettre à jour
+    // Mettre à jour un utilisateur (uniquement les champs non-nuls)
     public function updateUser(int $id, string $name): User
     {
         return $this->repository->update($id, new UserRecord(name: $name));
     }
 
-    // Supprimer
+    // Supprimer un utilisateur
     public function deleteUser(int $id): bool
     {
         return $this->repository->delete($id);
@@ -291,25 +311,26 @@ class UserService
             filters: $filters,
             limit: 50,
             sortBy: 'name',
+            sortDir: SortDirection::ASC,
         );
         
         return $this->repository->findBy($findBy)->all();
     }
 
-    // Paginer
+    // Paginer les résultats
     public function getPaginatedUsers(int $page = 1): LengthAwarePaginator
     {
         $paginate = new PaginateRecord(
             perPage: 15,
             page: $page,
             sortBy: 'created_at',
-            sortDir: 'desc',
+            sortDir: SortDirection::DESC,
         );
         
         return $this->repository->paginate($paginate);
     }
 
-    // Compter
+    // Compter les enregistrements
     public function countActiveUsers(): int
     {
         $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
@@ -334,40 +355,41 @@ class UserService
 
 ---
 
-## API Reference
+## Référence de l'API
 
 ### AbstractRepository
 
 | Méthode | Paramètres | Retour | Description |
 |---------|------------|--------|-------------|
-| `info()` | - | `RepositoryInfoRecord` | Informations sur le repository |
-| `create(Recordable $record)` | `$record` | `Model` | Crée un nouvel enregistrement |
-| `find(int $id)` | `$id` | `Model|null` | Trouve par ID |
-| `findBy(FindByRecord $record)` | `$record` | `Collection<Model>` | Recherche avec critères |
-| `update(int $id, Recordable $record)` | `$id, $record` | `Model` | Met à jour (champs non-null seulement) |
-| `delete(int $id)` | `$id` | `bool` | Supprime par ID |
-| `count(?Recordable $criteria)` | `$criteria` | `int` | Compte les enregistrements |
-| `exists(Recordable $criteria)` | `$criteria` | `bool` | Vérifie l'existence |
+| `info()` | - | `RepositoryInfoRecord` | Informations du repository |
+| `create(AbstractRecord $record)` | `$record` | `Model` | Créer un nouvel enregistrement |
+| `find(int $id)` | `$id` | `Model|null` | Trouver par ID |
+| `findBy(FindByRecord $record)` | `$record` | `Collection<Model>` | Rechercher avec critères |
+| `update(int $id, AbstractRecord $record)` | `$id, $record` | `Model` | Mettre à jour (champs non-nuls uniquement) |
+| `delete(int $id)` | `$id` | `bool` | Supprimer par ID |
+| `count(?AbstractRecord $criteria)` | `$criteria` | `int` | Compter les enregistrements |
+| `exists(AbstractRecord $criteria)` | `$criteria` | `bool` | Vérifier l'existence |
 | `paginate(PaginateRecord $record)` | `$record` | `LengthAwarePaginator` | Résultats paginés |
-| `deleteBulk(Recordable $criteria)` | `$criteria` | `int` | Suppression groupée |
+| `deleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression groupée |
 
 ### Méthodes à surcharger
 
 | Méthode | Description |
 |---------|-------------|
-| `applyFilters(Builder $query, Recordable $filters)` | Applique les filtres de recherche (à surcharger) |
+| `applyFilters(Builder $query, AbstractRecord $filters)` | Appliquer les filtres de recherche (doit être surchargée) |
 
 ### Exceptions
 
 | Exception | Quand |
 |-----------|-------|
 | `ModelNotFoundException` | `update()` sur un ID inexistant |
+| `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` |
 
 ---
 
 ## Bonnes pratiques
 
-### 1. Un Record par entité
+### 1. Un Record par Entité
 
 ```php
 // ✅ BON
@@ -378,17 +400,17 @@ final class PostRecord extends AbstractRecord { ... }
 final class UserPostRecord extends AbstractRecord { ... }
 ```
 
-### 2. Record de filtres séparé (optionnel)
+### 2. Record de filtres séparé pour les cas complexes
 
 ```php
-// ✅ BON - Pour des filtres complexes
+// ✅ BON - Pour les filtres complexes
 final class UserFiltersRecord extends AbstractRecord { ... }
 
-// ✅ BON - Pour des cas simples, réutiliser le Record principal
+// ✅ BON - Pour les cas simples, réutiliser le Record principal
 $filters = new UserRecord(status: UserStatus::ACTIVE);
 ```
 
-### 3. Utiliser les valeurs par défaut pour les champs optionnels
+### 3. Utiliser des valeurs par défaut pour les champs optionnels
 
 ```php
 // ✅ BON
@@ -407,14 +429,14 @@ public function __construct(
 ### 4. Implémenter `applyFilters()` proprement
 
 ```php
-protected function applyFilters(Builder $query, Recordable $filters): void
+protected function applyFilters(Builder $query, AbstractRecord $filters): void
 {
-    // Vérifier le type si vous utilisez un Record de filtres dédié
-    // if (!$filters instanceof UserFiltersRecord) {
-    //     return;
-    // }
+    // Vérification du type si utilisation d'un Record de filtres dédié
+    if (!$filters instanceof UserFiltersRecord) {
+        return;
+    }
 
-    // Utiliser `when()` pour des conditions complexes
+    // Utiliser when() pour les conditions complexes
     $query->when($filters->name ?? null, fn($q, $name) => 
         $q->where('name', 'like', '%' . $name . '%')
     );
@@ -425,7 +447,7 @@ protected function applyFilters(Builder $query, Recordable $filters): void
 }
 ```
 
-### 5. Tester vos repositories
+### 5. Tester vos Repositories
 
 ```php
 final class UserRepositoryTest extends IntegrationTestCase
@@ -438,7 +460,7 @@ final class UserRepositoryTest extends IntegrationTestCase
         $this->repository = new UserRepository();
     }
     
-    public function test_create_persists_user(): void
+    public function test_create_persiste_utilisateur(): void
     {
         $record = new UserRecord(name: 'John', email: 'john@example.com');
         
@@ -455,43 +477,6 @@ final class UserRepositoryTest extends IntegrationTestCase
 
 ---
 
-## Génération de code avec Directive Forge
-
-Ce package intègre `directive-forge` qui permet de générer automatiquement des repositories, records et filtres.
-
-### Installation de Directive Forge
-
-```bash
-composer require andydefer/directive-forge --dev
-```
-
-### Commandes disponibles
-
-```bash
-# Générer un repository
-./vendor/bin/directive make-repository user
-
-# Générer un record
-./vendor/bin/directive make-record user-data
-
-# Générer un record de filtres
-./vendor/bin/directive make-filters-record user-filters
-```
-
-### Exemple de génération
-
-```bash
-# Créer un repository User
-./vendor/bin/directive make-repository user
-
-# Génère:
-# - app/Repositories/UserRepository.php
-# - app/Records/UserRecord.php (optionnel)
-# - app/Records/UserFiltersRecord.php (optionnel)
-```
-
----
-
 ## Exemple complet avec filtres complexes
 
 ```php
@@ -502,33 +487,37 @@ final class OrderRepository extends AbstractRepository
         parent::__construct(Order::class, OrderRecord::class);
     }
 
-    protected function applyFilters(Builder $query, Recordable $filters): void
+    protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
-        // Filtre par date
-        if (property_exists($filters, 'fromDate') && $filters->fromDate !== null) {
+        if (!$filters instanceof OrderFiltersRecord) {
+            return;
+        }
+
+        // Filtre de plage de dates
+        if ($filters->fromDate !== null) {
             $query->whereDate('created_at', '>=', $filters->fromDate);
         }
         
-        if (property_exists($filters, 'toDate') && $filters->toDate !== null) {
+        if ($filters->toDate !== null) {
             $query->whereDate('created_at', '<=', $filters->toDate);
         }
 
-        // Filtre par montant
-        if (property_exists($filters, 'minAmount') && $filters->minAmount !== null) {
+        // Filtre de plage de montants
+        if ($filters->minAmount !== null) {
             $query->where('total', '>=', $filters->minAmount);
         }
         
-        if (property_exists($filters, 'maxAmount') && $filters->maxAmount !== null) {
+        if ($filters->maxAmount !== null) {
             $query->where('total', '<=', $filters->maxAmount);
         }
 
-        // Filtre par statut
-        if (property_exists($filters, 'status') && $filters->status !== null) {
+        // Filtre de statut
+        if ($filters->status !== null) {
             $query->where('status', $filters->status);
         }
 
-        // Filtre par recherche textuelle
-        if (property_exists($filters, 'search') && $filters->search !== null) {
+        // Filtre de recherche textuelle
+        if ($filters->search !== null) {
             $query->where(function ($q) use ($filters) {
                 $q->where('order_number', 'like', '%' . $filters->search . '%')
                   ->orWhere('customer_name', 'like', '%' . $filters->search . '%');
@@ -550,8 +539,9 @@ $paginate = new PaginateRecord(
     perPage: 20,
     page: 1,
     sortBy: 'created_at',
-    sortDir: 'desc',
+    sortDir: SortDirection::DESC,
     filters: $filters,
+    columns: new SelectColumns(['id', 'order_number', 'total', 'status']),
 );
 
 $orders = $repository->paginate($paginate);
@@ -586,49 +576,43 @@ composer test
 
 ---
 
-## Questions fréquentes
+## Génération de code avec Directive Forge
 
-### Q: Pourquoi ne pas utiliser directement les Models ?
+Ce package s'intègre à `directive-forge` pour générer automatiquement les repositories, records et filtres.
 
-**R:** Les repositories offrent une couche d'abstraction qui :
-- Centralise la logique d'accès aux données
-- Facilite le mocking dans les tests
-- Permet de changer d'implémentation (ex: passer d'Eloquent à Redis)
+### Installer Directive Forge
 
-### Q: Quelle est la différence entre `Record` et `Data` ?
-
-**R:** 
-- `Record` : Communication interne (Services, Repositories)
-- `Data` : Réponses API (Actions)
-
-### Q: Puis-je utiliser `array` au lieu de `TypedCollection` ?
-
-**R:** Non. Les tableaux bruts sont interdits dans les Records. Utilisez `TypedCollection` pour garantir la sécurité des types.
-
-### Q: Comment gérer les relations ?
-
-**R:** Les relations sont gérées dans le Repository :
-
-```php
-public function getUserWithPosts(int $userId): ?User
-{
-    return $this->model->newQuery()
-        ->with('posts')
-        ->find($userId);
-}
+```bash
+composer require andydefer/directive-forge --dev
 ```
 
-### Q: Puis-je utiliser ce package sans Laravel ?
+### Commandes disponibles
 
-**R:** Non, le package dépend de Laravel (Eloquent, migrations, configuration).
+```bash
+# Générer un repository
+./vendor/bin/directive make-repository user
 
-### Q: Le package inclut-il un générateur de code ?
+# Générer un record
+./vendor/bin/directive make-record user-data
 
-**R:** Oui, via `directive-forge`. Les commandes `make-repository`, `make-record` et `make-filters-record` sont disponibles.
+# Générer un record de filtres
+./vendor/bin/directive make-filters-record user-filters
+```
+
+### Exemple de génération
+
+```bash
+# Créer un repository User
+./vendor/bin/directive make-repository user
+
+# Génère :
+# - app/Repositories/UserRepository.php
+# - app/Records/UserRecord.php (optionnel)
+# - app/Records/UserFiltersRecord.php (optionnel)
+```
 
 ---
 
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
-```

@@ -8,15 +8,7 @@ use Illuminate\Support\ServiceProvider;
 
 class RepositoryServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        $this->mergeConfigFrom(__DIR__.'/../config/repository.php', 'repository');
-    }
+    public function register(): void {}
 
-    public function boot(): void
-    {
-        $this->publishes([
-            __DIR__.'/../config/repository.php' => config_path('repository.php'),
-        ], 'repository-config');
-    }
+    public function boot(): void {}
 }

@@ -6,6 +6,8 @@ namespace AndyDefer\Repository\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\DomainStructures\Utils\EmptyRecord;
+use AndyDefer\Repository\Enums\SortDirection;
+use AndyDefer\Repository\ValueObjects\SelectColumns;
 
 final class PaginateRecord extends AbstractRecord
 {
@@ -13,8 +15,8 @@ final class PaginateRecord extends AbstractRecord
         public readonly int $perPage = 15,
         public readonly int $page = 1,
         public readonly ?string $sortBy = null,
-        public readonly string $sortDir = 'asc',
+        public readonly SortDirection $sortDir = SortDirection::ASC,
         public readonly AbstractRecord $filters = new EmptyRecord,
-        public readonly array $columns = ['*'],
+        public readonly SelectColumns $columns = new SelectColumns(['*']),
     ) {}
 }
