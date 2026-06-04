@@ -1,5 +1,3 @@
-Voici la traduction complète du document en français :
-
 # Laravel Repository
 
 **Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records et Eloquent.**
