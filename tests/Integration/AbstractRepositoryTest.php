@@ -454,4 +454,131 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertDatabaseMissing('test_users', ['email' => 'todelete1@example.com']);
         $this->assertDatabaseMissing('test_users', ['email' => 'todelete2@example.com']);
     }
+
+    public function test_update_raw_updates_with_raw_data_including_null_values(): void
+    {
+        // Arrange
+        $user = TestUser::create([
+            'name' => 'Original Name',
+            'email' => 'original@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+
+        // Act
+        $updated = $this->repository->updateRaw($user->id, [
+            'name' => 'Updated Name',
+            'email' => null,
+            'status' => TestUserStatus::INACTIVE->value,
+        ]);
+
+        // Assert
+        $this->assertSame('Updated Name', $updated->name);
+        $this->assertNull($updated->email);
+        $this->assertSame(TestUserStatus::INACTIVE, $updated->status);
+        $this->assertSame(TestUserRole::USER, $updated->role);
+        $this->assertSame(TestUserGrade::BRONZE, $updated->grade);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'name' => 'Updated Name',
+            'status' => TestUserStatus::INACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ]);
+    }
+
+    public function test_update_raw_updates_only_provided_fields_when_passed_partial_data(): void
+    {
+        // Arrange
+        $user = TestUser::create([
+            'name' => 'Original Name',
+            'email' => 'original@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+
+        // Act
+        $updated = $this->repository->updateRaw($user->id, [
+            'name' => 'Updated Name',
+        ]);
+
+        // Assert
+        $this->assertSame('Updated Name', $updated->name);
+        $this->assertSame('original@example.com', $updated->email);
+        $this->assertSame(TestUserStatus::ACTIVE, $updated->status);
+        $this->assertSame(TestUserRole::USER, $updated->role);
+        $this->assertSame(TestUserGrade::BRONZE, $updated->grade);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'name' => 'Updated Name',
+            'email' => 'original@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+        ]);
+    }
+
+    public function test_update_raw_sets_null_on_explicitly_provided_null_values(): void
+    {
+        // Arrange
+        $user = TestUser::create([
+            'name' => 'Original Name',
+            'email' => 'original@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+            'metadata' => json_encode(['key' => 'value']),
+        ]);
+
+        // Act
+        $updated = $this->repository->updateRaw($user->id, [
+            'metadata' => null,
+        ]);
+
+        // Assert
+        $this->assertNull($updated->metadata);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'metadata' => null,
+        ]);
+    }
+
+    public function test_update_raw_throws_exception_when_user_not_found(): void
+    {
+        // Assert
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('AndyDefer\\Repository\\Tests\\Fixtures\\Models\\TestUser with id 999 not found');
+
+        // Act
+        $this->repository->updateRaw(999, ['name' => 'New Name']);
+    }
+
+    public function test_update_raw_with_empty_data_does_nothing_and_returns_model(): void
+    {
+        // Arrange
+        $user = TestUser::create([
+            'name' => 'Original Name',
+            'email' => 'original@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+
+        // Act
+        $updated = $this->repository->updateRaw($user->id, []);
+
+        // Assert
+        $this->assertSame($user->id, $updated->id);
+        $this->assertSame('Original Name', $updated->name);
+        $this->assertSame('original@example.com', $updated->email);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'name' => 'Original Name',
+            'email' => 'original@example.com',
+        ]);
+    }
 }

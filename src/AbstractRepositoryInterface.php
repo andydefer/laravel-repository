@@ -47,6 +47,15 @@ interface AbstractRepositoryInterface
      */
     public function update(int $id, AbstractRecord $record): Model;
 
+    /**
+     * Update a model with raw array data.
+     * Use this when you need to set fields to NULL or use database-specific values.
+     *
+     * @param  array<string, mixed>  $data
+     * @return TModel
+     */
+    public function updateRaw(int $id, array $data): Model;
+
     public function delete(int $id): bool;
 
     public function count(?AbstractRecord $criteria = null): int;

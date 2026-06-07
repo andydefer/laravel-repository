@@ -16,8 +16,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
 /**
- * Abstract repository implementation with common CRUD operations.
- *
  * @template TModel of Model
  * @template TRecord of AbstractRecord
  *
@@ -130,6 +128,30 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
             $record->toArrayWithoutNulls(),
             fn ($value) => $value !== null
         );
+
+        if (! empty($data)) {
+            $model->update($data);
+            $model->refresh();
+        }
+
+        return $model;
+    }
+
+    /**
+     * Update a model with raw array data.
+     * Use this when you need to set fields to NULL or use database-specific values.
+     *
+     * @param  array<string, mixed>  $data
+     * @return TModel
+     */
+    public function updateRaw(int $id, array $data): Model
+    {
+        /** @var TModel|null $model */
+        $model = $this->model->newQuery()->find($id);
+
+        if ($model === null) {
+            throw ModelNotFoundException::create($this->modelClass, $id);
+        }
 
         if (! empty($data)) {
             $model->update($data);
