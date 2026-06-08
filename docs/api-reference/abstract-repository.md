@@ -1,4 +1,4 @@
-Voici la documentation mise à jour avec les nouvelles méthodes Soft Delete :
+Voici la documentation mise à jour avec la nouvelle méthode `forceDeleteBulk` :
 
 # AbstractRepository - Référence Technique
 
@@ -298,7 +298,7 @@ echo $users->links(); // Liens de pagination
 
 ### `deleteBulk(AbstractRecord $criteria): int`
 
-Supprime plusieurs modèles correspondant aux critères.
+Supprime plusieurs modèles correspondant aux critères (soft delete si le modèle utilise `SoftDeletes`, sinon hard delete).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -311,6 +311,31 @@ Supprime plusieurs modèles correspondant aux critères.
 $criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
 $deletedCount = $repository->deleteBulk($criteria);
 echo "Deleted {$deletedCount} inactive users";
+```
+
+### `forceDeleteBulk(AbstractRecord $criteria): int` ⭐ **NOUVEAU**
+
+Supprime définitivement plusieurs modèles correspondant aux critères (hard delete), même s'ils sont soft deletés.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$criteria` | `AbstractRecord` | Critères pour sélectionner les modèles à supprimer définitivement |
+
+**Retourne :** `int` - Nombre d'enregistrements supprimés définitivement
+
+**⚠️ Important :** Cette opération est irréversible. Si le modèle utilise `SoftDeletes`, les enregistrements sont définitivement supprimés de la base de données.
+
+**Exemple :**
+```php
+// Supprimer définitivement tous les utilisateurs inactifs
+$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
+$deletedCount = $repository->forceDeleteBulk($criteria);
+echo "Permanently deleted {$deletedCount} inactive users";
+
+// Supprimer définitivement tous les soft deleted
+$criteria = new ProductFiltersRecord(is_deleted: true);
+$deletedCount = $repository->forceDeleteBulk($criteria);
+echo "Permanently deleted {$deletedCount} soft deleted products";
 ```
 
 ## Cas d'utilisation
@@ -401,8 +426,12 @@ if ($repository->restore(5)) {
     echo "Product restored";
 }
 
-// Suppression définitive
+// Suppression définitive d'un produit
 $repository->forceDelete(5);
+
+// Suppression définitive de tous les soft deleted
+$filters = new ProductFiltersRecord(is_deleted: true);
+$repository->forceDeleteBulk($filters);
 ```
 
 ### Cas 4 : Recherche avancée avec colonnes spécifiques
@@ -485,10 +514,11 @@ Request → Repository
     ├── delete() → find() → delete() (soft ou hard selon le modèle)
     ├── restore() → findWithTrashed() → model->restore()
     ├── forceDelete() → findWithTrashed() → model->forceDelete()
+    ├── deleteBulk() → buildQuery() → delete() (soft ou hard selon le modèle)
+    ├── forceDeleteBulk() → buildQuery() → forceDelete() (hard delete permanent)
     ├── count() → buildQuery() → count()
     ├── exists() → buildQuery() → exists()
-    ├── paginate() → buildQuery() → paginate()
-    └── deleteBulk() → buildQuery() → delete()
+    └── paginate() → buildQuery() → paginate()
 ```
 
 ## Gestion des erreurs
@@ -531,13 +561,14 @@ Request → Repository
 **Complexité :**
 - Opérations CRUD : O(1) pour la logique métier (délégue à la BDD)
 - findBy avec conditions : O(n) où n = nombre de filtres
-- deleteBulk : O(m) où m = nombre de modèles supprimés
+- deleteBulk / forceDeleteBulk : O(m) où m = nombre de modèles supprimés
 - restore/forceDelete : O(1) avec détection de trait
 
 **Points d'attention :**
 - Les méthodes `find()` et `update()` effectuent 2 requêtes (SELECT + UPDATE)
 - `refresh()` après update recharge le modèle (requête supplémentaire)
 - `findWithTrashed()` ajoute `withTrashed()` si le modèle utilise SoftDeletes
+- `forceDeleteBulk()` supprime définitivement - opération irréversible
 
 ## Compatibilité
 
@@ -634,6 +665,11 @@ if ($repository->restore($product->id)) {
 
 // Suppression définitive
 $repository->forceDelete($product->id);
+
+// Nettoyage de masse : supprimer définitivement tous les soft deleted
+$filters = new ProductFiltersRecord(includeDeleted: true);
+$deletedCount = $repository->forceDeleteBulk($filters);
+echo "Permanently deleted {$deletedCount} products";
 
 // Rechercher des produits (exclut les soft deleted par défaut)
 $filters = new ProductFiltersRecord(

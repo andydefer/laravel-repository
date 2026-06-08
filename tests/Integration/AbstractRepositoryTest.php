@@ -734,4 +734,85 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         // Assert
         $this->assertSame(1, $result);
     }
+
+    public function test_force_delete_bulk_permanently_removes_soft_deleted_models(): void
+    {
+        // Arrange
+        $product1 = $this->productRepository->create(new TestProductRecord(
+            name: 'To Force Delete 1',
+            price: 10.00,
+            stock: 5,
+            is_active: true,
+        ));
+        $product2 = $this->productRepository->create(new TestProductRecord(
+            name: 'To Force Delete 2',
+            price: 20.00,
+            stock: 3,
+            is_active: true,
+        ));
+        $product3 = $this->productRepository->create(new TestProductRecord(
+            name: 'Keep',
+            price: 30.00,
+            stock: 1,
+            is_active: true,
+        ));
+
+        // Soft delete les deux premiers
+        $this->productRepository->delete($product1->id);
+        $this->productRepository->delete($product2->id);
+
+        // Vérifier qu'ils sont soft deletés
+        $this->assertDatabaseHas('test_products', ['id' => $product1->id]);
+        $this->assertDatabaseHas('test_products', ['id' => $product2->id]);
+        $this->assertDatabaseMissing('test_products', ['id' => $product1->id, 'deleted_at' => null]);
+        $this->assertDatabaseMissing('test_products', ['id' => $product2->id, 'deleted_at' => null]);
+
+        $filters = new TestProductFilterRecord(is_deleted: true);
+
+        // Act
+        $deletedCount = $this->productRepository->forceDeleteBulk($filters);
+
+        // Assert
+        $this->assertSame(2, $deletedCount);
+        $this->assertDatabaseMissing('test_products', ['id' => $product1->id]);
+        $this->assertDatabaseMissing('test_products', ['id' => $product2->id]);
+        $this->assertDatabaseHas('test_products', ['id' => $product3->id]);
+    }
+
+    public function test_force_delete_bulk_on_model_without_soft_deletes_performs_hard_delete(): void
+    {
+        // Arrange
+        $user1 = TestUser::create([
+            'name' => 'To Delete 1',
+            'email' => 'todelete1@example.com',
+            'status' => TestUserStatus::INACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+        $user2 = TestUser::create([
+            'name' => 'To Delete 2',
+            'email' => 'todelete2@example.com',
+            'status' => TestUserStatus::INACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+        $user3 = TestUser::create([
+            'name' => 'Keep',
+            'email' => 'keep@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+
+        $criteria = new TestUserFiltersRecord(status: TestUserStatus::INACTIVE);
+
+        // Act
+        $deletedCount = $this->userRepository->forceDeleteBulk($criteria);
+
+        // Assert
+        $this->assertSame(2, $deletedCount);
+        $this->assertDatabaseMissing('test_users', ['id' => $user1->id]);
+        $this->assertDatabaseMissing('test_users', ['id' => $user2->id]);
+        $this->assertDatabaseHas('test_users', ['id' => $user3->id]);
+    }
 }

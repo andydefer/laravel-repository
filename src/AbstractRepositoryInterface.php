@@ -92,4 +92,11 @@ interface AbstractRepositoryInterface
     public function paginate(PaginateRecord $record): LengthAwarePaginator;
 
     public function deleteBulk(AbstractRecord $criteria): int;
+
+    /**
+     * Force delete multiple models matching the given criteria (hard delete, even if soft deleted).
+     *
+     * @return int Number of records force deleted
+     */
+    public function forceDeleteBulk(AbstractRecord $criteria): int;
 }

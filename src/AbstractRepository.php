@@ -235,6 +235,22 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * Force delete multiple models matching the given criteria (hard delete, even if soft deleted).
+     *
+     * @return int Number of records force deleted
+     */
+    public function forceDeleteBulk(AbstractRecord $criteria): int
+    {
+        $query = $this->buildQuery($criteria);
+
+        if ($this->usesSoftDeletes()) {
+            return $query->forceDelete();
+        }
+
+        return $query->delete();
+    }
+
+    /**
      * Count models matching the given criteria.
      */
     public function count(?AbstractRecord $criteria = null): int
