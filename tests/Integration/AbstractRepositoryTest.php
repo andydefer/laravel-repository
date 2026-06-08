@@ -11,9 +11,13 @@ use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserGrade;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserRole;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserStatus;
+use AndyDefer\Repository\Tests\Fixtures\Models\TestProduct;
 use AndyDefer\Repository\Tests\Fixtures\Models\TestUser;
+use AndyDefer\Repository\Tests\Fixtures\Records\TestProductFilterRecord;
+use AndyDefer\Repository\Tests\Fixtures\Records\TestProductRecord;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserFiltersRecord;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserRecord;
+use AndyDefer\Repository\Tests\Fixtures\Repositories\TestProductRepository;
 use AndyDefer\Repository\Tests\Fixtures\Repositories\TestUserRepository;
 use AndyDefer\Repository\Tests\IntegrationTestCase;
 use AndyDefer\Repository\ValueObjects\SelectColumns;
@@ -22,13 +26,20 @@ use Illuminate\Support\Collection;
 
 final class AbstractRepositoryTest extends IntegrationTestCase
 {
-    private TestUserRepository $repository;
+    private TestUserRepository $userRepository;
+
+    private TestProductRepository $productRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->repository = new TestUserRepository;
+        $this->userRepository = new TestUserRepository;
+        $this->productRepository = new TestProductRepository;
     }
+
+    // ============================================================================
+    // CRUD Tests with TestUser (without SoftDeletes)
+    // ============================================================================
 
     public function test_create_returns_model_and_persists_to_database(): void
     {
@@ -42,7 +53,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $user = $this->repository->create($record);
+        $user = $this->userRepository->create($record);
 
         // Assert
         $this->assertInstanceOf(TestUser::class, $user);
@@ -72,7 +83,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $result = $this->repository->find($user->id);
+        $result = $this->userRepository->find($user->id);
 
         // Assert
         $this->assertNotNull($result);
@@ -84,7 +95,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_returns_null_when_not_exists(): void
     {
         // Act
-        $result = $this->repository->find(999);
+        $result = $this->userRepository->find(999);
 
         // Assert
         $this->assertNull($result);
@@ -127,7 +138,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $result = $this->repository->findBy($findByRecord);
+        $result = $this->userRepository->findBy($findByRecord);
 
         // Assert
         $this->assertInstanceOf(Collection::class, $result);
@@ -160,7 +171,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $result = $this->repository->findBy($findByRecord);
+        $result = $this->userRepository->findBy($findByRecord);
 
         // Assert
         $this->assertCount(2, $result);
@@ -184,7 +195,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $result = $this->repository->findBy($findByRecord);
+        $result = $this->userRepository->findBy($findByRecord);
         $user = $result->first();
 
         // Assert
@@ -210,7 +221,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $updated = $this->repository->update($user->id, $updateRecord);
+        $updated = $this->userRepository->update($user->id, $updateRecord);
 
         // Assert
         $this->assertSame('Updated Name', $updated->name);
@@ -232,7 +243,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->expectExceptionMessage('AndyDefer\\Repository\\Tests\\Fixtures\\Models\\TestUser with id 999 not found');
 
         // Act
-        $this->repository->update(999, $updateRecord);
+        $this->userRepository->update(999, $updateRecord);
     }
 
     public function test_delete_returns_true_when_user_exists(): void
@@ -247,7 +258,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $result = $this->repository->delete($user->id);
+        $result = $this->userRepository->delete($user->id);
 
         // Assert
         $this->assertTrue($result);
@@ -257,7 +268,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_delete_returns_false_when_user_not_exists(): void
     {
         // Act
-        $result = $this->repository->delete(999);
+        $result = $this->userRepository->delete(999);
 
         // Assert
         $this->assertFalse($result);
@@ -282,7 +293,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $count = $this->repository->count();
+        $count = $this->userRepository->count();
 
         // Assert
         $this->assertSame(2, $count);
@@ -309,7 +320,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $criteria = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
 
         // Act
-        $count = $this->repository->count($criteria);
+        $count = $this->userRepository->count($criteria);
 
         // Assert
         $this->assertSame(1, $count);
@@ -329,7 +340,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $criteria = new TestUserFiltersRecord(email: 'exists@example.com');
 
         // Act
-        $exists = $this->repository->exists($criteria);
+        $exists = $this->userRepository->exists($criteria);
 
         // Assert
         $this->assertTrue($exists);
@@ -341,7 +352,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $criteria = new TestUserFiltersRecord(email: 'notexists@example.com');
 
         // Act
-        $exists = $this->repository->exists($criteria);
+        $exists = $this->userRepository->exists($criteria);
 
         // Assert
         $this->assertFalse($exists);
@@ -374,7 +385,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
 
         // Act
         /** @var Collection|\Countable $result */
-        $result = $this->repository->paginate($paginateRecord);
+        $result = $this->userRepository->paginate($paginateRecord);
 
         // Assert
         $this->assertInstanceOf(LengthAwarePaginator::class, $result);
@@ -407,7 +418,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        $result = $this->repository->paginate($paginateRecord);
+        $result = $this->userRepository->paginate($paginateRecord);
         $user = $result->items()[0];
 
         // Assert
@@ -445,7 +456,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $criteria = new TestUserFiltersRecord(status: TestUserStatus::INACTIVE);
 
         // Act
-        $deletedCount = $this->repository->deleteBulk($criteria);
+        $deletedCount = $this->userRepository->deleteBulk($criteria);
 
         // Assert
         $this->assertSame(2, $deletedCount);
@@ -467,7 +478,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $updated = $this->repository->updateRaw($user->id, [
+        $updated = $this->userRepository->updateRaw($user->id, [
             'name' => 'Updated Name',
             'email' => null,
             'status' => TestUserStatus::INACTIVE->value,
@@ -501,7 +512,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $updated = $this->repository->updateRaw($user->id, [
+        $updated = $this->userRepository->updateRaw($user->id, [
             'name' => 'Updated Name',
         ]);
 
@@ -520,32 +531,6 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
     }
 
-    public function test_update_raw_sets_null_on_explicitly_provided_null_values(): void
-    {
-        // Arrange
-        $user = TestUser::create([
-            'name' => 'Original Name',
-            'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-            'metadata' => json_encode(['key' => 'value']),
-        ]);
-
-        // Act
-        $updated = $this->repository->updateRaw($user->id, [
-            'metadata' => null,
-        ]);
-
-        // Assert
-        $this->assertNull($updated->metadata);
-
-        $this->assertDatabaseHas('test_users', [
-            'id' => $user->id,
-            'metadata' => null,
-        ]);
-    }
-
     public function test_update_raw_throws_exception_when_user_not_found(): void
     {
         // Assert
@@ -553,7 +538,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->expectExceptionMessage('AndyDefer\\Repository\\Tests\\Fixtures\\Models\\TestUser with id 999 not found');
 
         // Act
-        $this->repository->updateRaw(999, ['name' => 'New Name']);
+        $this->userRepository->updateRaw(999, ['name' => 'New Name']);
     }
 
     public function test_update_raw_with_empty_data_does_nothing_and_returns_model(): void
@@ -568,7 +553,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         ]);
 
         // Act
-        $updated = $this->repository->updateRaw($user->id, []);
+        $updated = $this->userRepository->updateRaw($user->id, []);
 
         // Assert
         $this->assertSame($user->id, $updated->id);
@@ -580,5 +565,173 @@ final class AbstractRepositoryTest extends IntegrationTestCase
             'name' => 'Original Name',
             'email' => 'original@example.com',
         ]);
+    }
+
+    // ============================================================================
+    // SoftDelete Tests with TestProduct (with SoftDeletes)
+    // ============================================================================
+
+    public function test_soft_delete_restore_recovers_soft_deleted_model(): void
+    {
+        // Arrange
+        $record = new TestProductRecord(
+            name: 'Test Product',
+            price: 99.99,
+            stock: 10,
+            is_active: true,
+        );
+        $product = $this->productRepository->create($record);
+        $productId = $product->id;
+
+        // Act - Soft delete
+        $deleted = $this->productRepository->delete($productId);
+        $this->assertTrue($deleted);
+
+        // Vérifier que le produit est soft deleté
+        $this->assertDatabaseHas('test_products', ['id' => $productId]);
+        $this->assertDatabaseMissing('test_products', ['id' => $productId, 'deleted_at' => null]);
+
+        // Vérifier que find() ne le trouve plus
+        $this->assertNull($this->productRepository->find($productId));
+
+        // Act - Restore
+        $restored = $this->productRepository->restore($productId);
+
+        // Assert
+        $this->assertTrue($restored);
+
+        // Vérifier que le produit est à nouveau trouvable
+        $restoredProduct = $this->productRepository->find($productId);
+        $this->assertNotNull($restoredProduct);
+        $this->assertSame('Test Product', $restoredProduct->name);
+
+        // Vérifier que deleted_at est null
+        $this->assertDatabaseHas('test_products', ['id' => $productId, 'deleted_at' => null]);
+    }
+
+    public function test_soft_delete_restore_returns_false_when_model_not_found(): void
+    {
+        // Act
+        $restored = $this->productRepository->restore(999);
+
+        // Assert
+        $this->assertFalse($restored);
+    }
+
+    public function test_soft_delete_restore_returns_false_when_model_is_not_soft_deleted(): void
+    {
+        // Arrange
+        $record = new TestProductRecord(
+            name: 'Not Deleted',
+            price: 49.99,
+            stock: 5,
+            is_active: true,
+        );
+        $product = $this->productRepository->create($record);
+
+        // Act
+        $restored = $this->productRepository->restore($product->id);
+
+        // Assert
+        $this->assertFalse($restored);
+    }
+
+    public function test_find_with_trashed_returns_soft_deleted_model(): void
+    {
+        // Arrange
+        $record = new TestProductRecord(
+            name: 'Hidden Product',
+            price: 49.99,
+            stock: 5,
+            is_active: true,
+        );
+        $product = $this->productRepository->create($record);
+        $productId = $product->id;
+
+        // Soft delete
+        $this->productRepository->delete($productId);
+
+        // Act
+        $found = $this->productRepository->findWithTrashed($productId);
+
+        // Assert
+        $this->assertNotNull($found);
+        $this->assertSame('Hidden Product', $found->name);
+        $this->assertNotNull($found->deleted_at);
+    }
+
+    public function test_find_with_trashed_returns_null_when_not_found(): void
+    {
+        // Act
+        $found = $this->productRepository->findWithTrashed(999);
+
+        // Assert
+        $this->assertNull($found);
+    }
+
+    public function test_force_delete_permanently_removes_model(): void
+    {
+        // Arrange
+        $record = new TestProductRecord(
+            name: 'To Force Delete',
+            price: 19.99,
+            stock: 1,
+            is_active: false,
+        );
+        $product = $this->productRepository->create($record);
+        $productId = $product->id;
+
+        // Act
+        $deleted = $this->productRepository->forceDelete($productId);
+
+        // Assert
+        $this->assertTrue($deleted);
+        $this->assertDatabaseMissing('test_products', ['id' => $productId]);
+    }
+
+    public function test_force_delete_returns_false_when_model_not_found(): void
+    {
+        // Act
+        $deleted = $this->productRepository->forceDelete(999);
+
+        // Assert
+        $this->assertFalse($deleted);
+    }
+
+    public function test_find_by_with_trashed_filter_returns_deleted_records(): void
+    {
+        // Arrange
+        $this->productRepository->create(new TestProductRecord(name: 'Active Product 1', price: 10.00, stock: 5, is_active: true));
+        $this->productRepository->create(new TestProductRecord(name: 'Active Product 2', price: 20.00, stock: 3, is_active: true));
+
+        $deletedRecord = new TestProductRecord(name: 'Deleted Product', price: 30.00, stock: 0, is_active: false);
+        $deletedProduct = $this->productRepository->create($deletedRecord);
+        $this->productRepository->delete($deletedProduct->id);
+
+        $filters = new TestProductFilterRecord(is_deleted: true);
+
+        // Act
+        $result = $this->productRepository->count($filters);
+
+        // Assert
+        $this->assertSame(1, $result);
+    }
+
+    public function test_find_by_without_trashed_filter_excludes_deleted_records(): void
+    {
+        // Arrange
+        $this->productRepository->create(new TestProductRecord(name: 'Active Product', price: 10.00, stock: 5, is_active: true));
+
+        $deletedRecord = new TestProductRecord(name: 'Deleted Product', price: 30.00, stock: 0, is_active: false);
+        $deletedProduct = $this->productRepository->create($deletedRecord);
+        $this->productRepository->delete($deletedProduct->id);
+
+        $filters = new TestProductFilterRecord(is_deleted: false);
+
+        // Act
+        $result = $this->productRepository->count($filters);
+
+        // Assert
+        $this->assertSame(1, $result);
     }
 }

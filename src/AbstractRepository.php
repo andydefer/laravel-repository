@@ -13,6 +13,7 @@ use AndyDefer\Repository\Records\RepositoryInfoRecord;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
 /**
@@ -77,6 +78,25 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
+
+        return $model;
+    }
+
+    /**
+     * Find a model by its ID including soft deleted ones.
+     *
+     * @return TModel|null
+     */
+    public function findWithTrashed(int $id): ?Model
+    {
+        $query = $this->model->newQuery();
+
+        if ($this->usesSoftDeletes()) {
+            $query = $query->withTrashed();
+        }
+
+        /** @var TModel|null $model */
+        $model = $query->find($id);
 
         return $model;
     }
@@ -162,7 +182,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
-     * Delete a model by ID.
+     * Delete a model by ID (soft delete if SoftDeletes trait is used).
      *
      * @return bool True if deleted, false if not found
      */
@@ -176,6 +196,42 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         }
 
         return (bool) $model->delete();
+    }
+
+    /**
+     * Restore a soft-deleted model by ID.
+     *
+     * @return bool True if restored, false if not found or not soft deleted
+     */
+    public function restore(int $id): bool
+    {
+        $model = $this->findWithTrashed($id);
+
+        if ($model === null) {
+            return false;
+        }
+
+        if (! $this->usesSoftDeletes() || ! $model->trashed()) {
+            return false;
+        }
+
+        return (bool) $model->restore();
+    }
+
+    /**
+     * Force delete a model by ID (hard delete, even if soft deleted).
+     *
+     * @return bool True if force deleted, false if not found
+     */
+    public function forceDelete(int $id): bool
+    {
+        $model = $this->findWithTrashed($id);
+
+        if ($model === null) {
+            return false;
+        }
+
+        return (bool) $model->forceDelete();
     }
 
     /**
@@ -259,4 +315,12 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  Builder<TModel>  $query
      */
     abstract protected function applyFilters(Builder $query, AbstractRecord $filters): void;
+
+    /**
+     * Check if the model uses the SoftDeletes trait.
+     */
+    private function usesSoftDeletes(): bool
+    {
+        return in_array(SoftDeletes::class, class_uses_recursive($this->modelClass));
+    }
 }
