@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0f70498960827db481ed98721f07f8e5",
+    "content-hash": "43d7c39962c729ce92e2bbdefde78e05",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -59,7 +59,7 @@
         },
         {
             "name": "andydefer/php-vo",
-            "version": "0.7.2",
+            "version": "0.8.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/php-vo.git",
@@ -99,7 +99,7 @@
             "description": "A collection of reusable Value Objects and Enums for PHP applications (Email, Money, Address, PostalCode, Iso8601DateTime, Currency, etc.)",
             "support": {
                 "issues": "https://github.com/andydefer/php-vo/issues",
-                "source": "https://github.com/andydefer/php-vo/tree/0.7.2"
+                "source": "https://github.com/andydefer/php-vo/tree/0.8.0"
             },
             "time": "2026-06-08T03:19:23+00:00"
         },
