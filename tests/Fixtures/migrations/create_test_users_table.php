@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('status');
             $table->string('role');
-            $table->integer('grade');
+            $table->integer('grade')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamps();
         });

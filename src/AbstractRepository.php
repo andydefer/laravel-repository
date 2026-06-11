@@ -70,6 +70,17 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
+     * {@inheritDoc}
+     */
+    public function createRaw(array $data): Model
+    {
+        /** @var TModel $model */
+        $model = $this->model->newQuery()->create($data);
+
+        return $model;
+    }
+
+    /**
      * Find a model by its ID.
      *
      * @return TModel|null

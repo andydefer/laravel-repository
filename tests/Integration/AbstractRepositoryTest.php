@@ -22,6 +22,7 @@ use AndyDefer\Repository\Tests\Fixtures\Repositories\TestUserRepository;
 use AndyDefer\Repository\Tests\IntegrationTestCase;
 use AndyDefer\Repository\ValueObjects\SelectColumns;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 
 final class AbstractRepositoryTest extends IntegrationTestCase
@@ -68,6 +69,186 @@ final class AbstractRepositoryTest extends IntegrationTestCase
             'status' => TestUserStatus::ACTIVE->value,
             'role' => TestUserRole::USER->value,
             'grade' => TestUserGrade::BRONZE->value,
+        ]);
+    }
+
+    // ============================================================================
+    // CreateRaw Tests
+    // ============================================================================
+
+    public function test_create_raw_creates_model_from_raw_array_data(): void
+    {
+        // Arrange
+        $data = [
+            'name' => 'Raw Created User',
+            'email' => 'raw@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ];
+
+        // Act
+        $user = $this->userRepository->createRaw($data);
+
+        // Assert
+        $this->assertInstanceOf(TestUser::class, $user);
+        $this->assertNotNull($user->id);
+        $this->assertSame('Raw Created User', $user->name);
+        $this->assertSame('raw@example.com', $user->email);
+        $this->assertSame(TestUserStatus::ACTIVE, $user->status);
+        $this->assertSame(TestUserRole::USER, $user->role);
+        $this->assertSame(TestUserGrade::BRONZE, $user->grade);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'name' => 'Raw Created User',
+            'email' => 'raw@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ]);
+    }
+
+    public function test_create_raw_accepts_null_values_in_array(): void
+    {
+        // Arrange
+        $data = [
+            'name' => 'User With Null Email',
+            'email' => null,
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => null,
+        ];
+
+        // Act
+        $user = $this->userRepository->createRaw($data);
+
+        // Assert
+        $this->assertInstanceOf(TestUser::class, $user);
+        $this->assertNotNull($user->id);
+        $this->assertSame('User With Null Email', $user->name);
+        $this->assertNull($user->email);
+        $this->assertSame(TestUserStatus::ACTIVE, $user->status);
+        $this->assertNull($user->grade);
+
+        $this->assertDatabaseHas('test_users', [
+            'id' => $user->id,
+            'name' => 'User With Null Email',
+            'email' => null,
+            'status' => TestUserStatus::ACTIVE->value,
+            'grade' => null,
+        ]);
+    }
+
+    public function test_create_raw_creates_model_with_minimum_required_fields(): void
+    {
+        // Arrange
+        $data = [
+            'name' => 'Minimal User',
+            'email' => 'minimal@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ];
+
+        // Act
+        $user = $this->userRepository->createRaw($data);
+
+        // Assert
+        $this->assertInstanceOf(TestUser::class, $user);
+        $this->assertNotNull($user->id);
+        $this->assertSame('Minimal User', $user->name);
+        $this->assertSame('minimal@example.com', $user->email);
+        $this->assertNotNull($user->created_at);
+        $this->assertNotNull($user->updated_at);
+    }
+
+    public function test_create_raw_returns_created_model_with_auto_incremented_id(): void
+    {
+        // Arrange
+        $data1 = [
+            'name' => 'User One',
+            'email' => 'user1@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ];
+
+        $data2 = [
+            'name' => 'User Two',
+            'email' => 'user2@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ];
+
+        // Act
+        $user1 = $this->userRepository->createRaw($data1);
+        $user2 = $this->userRepository->createRaw($data2);
+
+        // Assert
+        $this->assertNotSame($user1->id, $user2->id);
+        $this->assertGreaterThan($user1->id, $user2->id);
+    }
+
+    public function test_create_raw_throws_exception_when_required_field_missing(): void
+    {
+        // Arrange
+        $data = [
+            'email' => 'missing_name@example.com',
+            'status' => TestUserStatus::ACTIVE->value,
+            'role' => TestUserRole::USER->value,
+            'grade' => TestUserGrade::BRONZE->value,
+        ];
+
+        // Assert
+        $this->expectException(QueryException::class);
+
+        // Act
+        $this->userRepository->createRaw($data);
+    }
+
+    public function test_create_raw_with_empty_array_throws_exception(): void
+    {
+        // Arrange
+        $data = [];
+
+        // Assert
+        $this->expectException(QueryException::class);
+
+        // Act
+        $this->userRepository->createRaw($data);
+    }
+
+    public function test_create_raw_for_product_with_soft_deletes_creates_model(): void
+    {
+        // Arrange
+        $data = [
+            'name' => 'Raw Created Product',
+            'price' => 199.99,
+            'stock' => 50,
+            'is_active' => true,
+        ];
+
+        // Act
+        $product = $this->productRepository->createRaw($data);
+
+        // Assert
+        $this->assertInstanceOf(TestProduct::class, $product);
+        $this->assertNotNull($product->id);
+        $this->assertSame('Raw Created Product', $product->name);
+        $this->assertSame(199.99, $product->price);
+        $this->assertSame(50, $product->stock);
+        $this->assertTrue($product->is_active);
+        $this->assertNull($product->deleted_at);
+
+        $this->assertDatabaseHas('test_products', [
+            'id' => $product->id,
+            'name' => 'Raw Created Product',
+            'price' => 199.99,
+            'stock' => 50,
+            'is_active' => 1,
+            'deleted_at' => null,
         ]);
     }
 

@@ -30,6 +30,15 @@ interface AbstractRepositoryInterface
     public function create(AbstractRecord $record): Model;
 
     /**
+     * Create a new model from raw array data.
+     * Use this when you already have an array ready for creation.
+     *
+     * @param  array<string, mixed>  $data
+     * @return TModel
+     */
+    public function createRaw(array $data): Model;
+
+    /**
      * @return TModel|null
      */
     public function find(int $id): ?Model;
