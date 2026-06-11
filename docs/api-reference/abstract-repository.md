@@ -1,5 +1,3 @@
-Voici la documentation mise à jour avec la nouvelle méthode `forceDeleteBulk` :
-
 # AbstractRepository - Référence Technique
 
 ## Description
@@ -68,6 +66,37 @@ Crée un nouveau modèle à partir d'un record.
 $record = new UserRecord(name: 'John Doe', email: 'john@example.com');
 $user = $repository->create($record);
 echo $user->id; // 1
+```
+
+### `createRaw(array $data): Model`
+
+Crée un nouveau modèle directement à partir d'un tableau de données brutes, sans passer par l'hydratation d'un Record.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$data` | `array<string, mixed>` | Tableau associatif des données à persister |
+
+**Retourne :** `TModel` - Le modèle créé avec son ID généré
+
+**Exceptions :** `QueryException` - Si les données ne respectent pas les contraintes de la base
+
+**Exemple :**
+```php
+// Création avec données brutes
+$data = [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'status' => 'active',
+];
+$user = $repository->createRaw($data);
+
+// Création avec valeurs null explicites
+$data = [
+    'name' => 'User Without Email',
+    'email' => null,
+    'status' => 'active',
+];
+$user = $repository->createRaw($data);
 ```
 
 ### `find(int $id): ?Model`
@@ -313,7 +342,7 @@ $deletedCount = $repository->deleteBulk($criteria);
 echo "Deleted {$deletedCount} inactive users";
 ```
 
-### `forceDeleteBulk(AbstractRecord $criteria): int` ⭐ **NOUVEAU**
+### `forceDeleteBulk(AbstractRecord $criteria): int`
 
 Supprime définitivement plusieurs modèles correspondant aux critères (hard delete), même s'ils sont soft deletés.
 
@@ -468,6 +497,34 @@ $user = $userRepository->update(1, $updateRecord);
 // L'email reste inchangé
 ```
 
+### Cas 6 : Utilisation de `createRaw` pour OTP service
+
+```php
+private function createOtpModel(
+    Model $otpable,
+    OtpProcessingContext $context,
+    ?array $channels,
+    ?array $metadata,
+    int $expiresInMinutes,
+    int $maxAttempts,
+    string $plainCode,
+): OneTimePassword {
+    $data = [
+        'otpable_type' => $otpable->getMorphClass(),
+        'otpable_id' => $otpable->getKey(),
+        'token_hash' => $this->hash->make($plainCode),
+        'type' => $context->getType(),
+        'destination' => $context->getDestination(),
+        'channels' => $channels,
+        'meta' => $metadata,
+        'max_attempts' => $maxAttempts,
+        'expires_at' => now()->addMinutes($expiresInMinutes),
+    ];
+
+    return $this->otpRepository->createRaw($data);
+}
+```
+
 ## Méthodes protégées
 
 ### `buildQuery(AbstractRecord $filters): Builder<TModel>`
@@ -507,10 +564,12 @@ Vérifie si le modèle utilise le trait `SoftDeletes`.
 ```
 Request → Repository
     ├── create() → Record → toArrayWithoutNulls() → Model::create()
+    ├── createRaw() → array → Model::create()
     ├── find() → Model::find()
     ├── findWithTrashed() → withTrashed() → Model::find()
     ├── findBy() → buildQuery() → applyFilters() → select()/orderBy()/limit() → get()
     ├── update() → find() → array_filter() → update() → refresh()
+    ├── updateRaw() → find() → update() → refresh()
     ├── delete() → find() → delete() (soft ou hard selon le modèle)
     ├── restore() → findWithTrashed() → model->restore()
     ├── forceDelete() → findWithTrashed() → model->forceDelete()
@@ -579,7 +638,7 @@ Request → Repository
 | Laravel 10+ | ✅ Complet | Support complet de SoftDeletes |
 | Laravel 9 | ✅ Complet | Tests passés |
 
-## Exemple complet avec SoftDelete
+## Exemple complet avec SoftDelete et createRaw
 
 ```php
 <?php
@@ -640,7 +699,7 @@ final class ProductRepository extends AbstractRepository
 // 3. Utiliser le repository
 $repository = new ProductRepository();
 
-// Créer un produit
+// Création avec create (via Record)
 $productRecord = new ProductRecord(
     name: 'Laptop',
     price: 999.99,
@@ -648,6 +707,16 @@ $productRecord = new ProductRecord(
     quantity: 10
 );
 $product = $repository->create($productRecord);
+
+// Création avec createRaw (données brutes)
+$rawData = [
+    'name' => 'Mouse',
+    'price' => 29.99,
+    'category_id' => 5,
+    'quantity' => 100,
+    'is_active' => true,
+];
+$mouse = $repository->createRaw($rawData);
 
 // Soft delete du produit
 $repository->delete($product->id);

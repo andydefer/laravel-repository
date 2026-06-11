@@ -1,3 +1,6 @@
+## README.md mis à jour (complet)
+
+```markdown
 # Laravel Repository
 
 **Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records et Eloquent.**
@@ -5,6 +8,21 @@
 [![Version PHP](https://img.shields.io/badge/PHP-8.1%2B-blue)](https://php.net)
 [![Version Laravel](https://img.shields.io/badge/Laravel-12.x%20|%2013.x%20|%2014.x%20|%2015.x-blue)](https://laravel.com)
 [![Licence](https://img.shields.io/badge/Licence-MIT-green)](LICENSE)
+
+---
+
+## Table des matières
+
+1. [Installation](#installation)
+2. [Concepts fondamentaux](#concepts-fondamentaux)
+3. [Créer votre premier Repository](#créer-votre-premier-repository)
+4. [Référence de l'API](#référence-de-lapi)
+5. [Méthodes à surcharger](#méthodes-à-surcharger)
+6. [Bonnes pratiques](#bonnes-pratiques)
+7. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
+8. [Tests](#tests)
+9. [Génération de code avec Directive Forge](#génération-de-code-avec-directive-forge)
+10. [Licence](#licence)
 
 ---
 
@@ -29,7 +47,6 @@ php artisan vendor:publish --tag=repository-config
 ```
 
 ---
-
 
 ## Concepts fondamentaux
 
@@ -361,14 +378,20 @@ class UserService
 |---------|------------|--------|-------------|
 | `info()` | - | `RepositoryInfoRecord` | Informations du repository |
 | `create(AbstractRecord $record)` | `$record` | `Model` | Créer un nouvel enregistrement |
+| `createRaw(array $data)` | `$data` | `Model` | Créer un enregistrement à partir de données brutes |
 | `find(int $id)` | `$id` | `Model|null` | Trouver par ID |
+| `findWithTrashed(int $id)` | `$id` | `Model|null` | Trouver par ID (inclus soft deleted) |
 | `findBy(FindByRecord $record)` | `$record` | `Collection<Model>` | Rechercher avec critères |
 | `update(int $id, AbstractRecord $record)` | `$id, $record` | `Model` | Mettre à jour (champs non-nuls uniquement) |
-| `delete(int $id)` | `$id` | `bool` | Supprimer par ID |
+| `updateRaw(int $id, array $data)` | `$id, $data` | `Model` | Mettre à jour avec données brutes |
+| `delete(int $id)` | `$id` | `bool` | Supprimer par ID (soft delete si disponible) |
+| `restore(int $id)` | `$id` | `bool` | Restaurer un soft deleted |
+| `forceDelete(int $id)` | `$id` | `bool` | Supprimer définitivement |
 | `count(?AbstractRecord $criteria)` | `$criteria` | `int` | Compter les enregistrements |
 | `exists(AbstractRecord $criteria)` | `$criteria` | `bool` | Vérifier l'existence |
 | `paginate(PaginateRecord $record)` | `$record` | `LengthAwarePaginator` | Résultats paginés |
-| `deleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression groupée |
+| `deleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression groupée (soft delete si disponible) |
+| `forceDeleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression définitive groupée |
 
 ### Méthodes à surcharger
 
@@ -380,7 +403,7 @@ class UserService
 
 | Exception | Quand |
 |-----------|-------|
-| `ModelNotFoundException` | `update()` sur un ID inexistant |
+| `ModelNotFoundException` | `update()` ou `updateRaw()` sur un ID inexistant |
 | `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` |
 
 ---
@@ -445,7 +468,27 @@ protected function applyFilters(Builder $query, AbstractRecord $filters): void
 }
 ```
 
-### 5. Tester vos Repositories
+### 5. Utiliser `createRaw` pour des données brutes
+
+```php
+// ✅ BON - Quand vous avez déjà des données brutes
+$data = [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'status' => 'active',
+];
+$user = $repository->createRaw($data);
+
+// ✅ BON - Pour créer avec des valeurs null explicites
+$data = [
+    'name' => 'User Without Email',
+    'email' => null,
+    'status' => 'active',
+];
+$user = $repository->createRaw($data);
+```
+
+### 6. Tester vos Repositories
 
 ```php
 final class UserRepositoryTest extends IntegrationTestCase
@@ -468,6 +511,23 @@ final class UserRepositoryTest extends IntegrationTestCase
             'id' => $user->id,
             'name' => 'John',
             'email' => 'john@example.com',
+        ]);
+    }
+    
+    public function test_create_raw_accepte_null(): void
+    {
+        $data = [
+            'name' => 'User With Null Email',
+            'email' => null,
+            'status' => 'active',
+        ];
+        
+        $user = $this->repository->createRaw($data);
+        
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'name' => 'User With Null Email',
+            'email' => null,
         ]);
     }
 }
@@ -547,6 +607,54 @@ $orders = $repository->paginate($paginate);
 
 ---
 
+## Support Soft Delete
+
+Le repository détecte automatiquement si votre modèle utilise le trait `SoftDeletes` et adapte son comportement :
+
+| Méthode | Comportement standard | Avec SoftDeletes |
+|---------|----------------------|------------------|
+| `delete()` | Suppression définitive | Soft delete (`deleted_at` rempli) |
+| `find()` | Retourne tous les modèles | Exclut les soft deleted |
+| `findWithTrashed()` | Comportement standard | Inclut les soft deleted |
+| `restore()` | Non disponible | Restaure un soft deleted |
+| `forceDelete()` | Non disponible | Suppression définitive |
+| `deleteBulk()` | Suppression définitive groupée | Soft delete groupé |
+| `forceDeleteBulk()` | Non disponible | Suppression définitive groupée |
+
+```php
+// Modèle avec SoftDelete
+final class Product extends Model
+{
+    use SoftDeletes;
+    
+    protected $fillable = ['name', 'price', 'quantity'];
+}
+
+// Utilisation
+$product = $repository->create(new ProductRecord(name: 'Laptop', price: 999.99));
+
+// Soft delete
+$repository->delete($product->id);
+
+// Le find normal ne le trouve pas
+$found = $repository->find($product->id); // null
+
+// findWithTrashed le trouve
+$deleted = $repository->findWithTrashed($product->id); // Product instance
+
+// Restauration
+$repository->restore($product->id);
+
+// Suppression définitive (hard delete)
+$repository->forceDelete($product->id);
+
+// Nettoyage de masse : supprimer définitivement tous les soft deleted
+$filters = new ProductFiltersRecord(includeDeleted: true);
+$count = $repository->forceDeleteBulk($filters);
+```
+
+---
+
 ## Tests
 
 ### Configuration des tests
@@ -591,10 +699,8 @@ composer require andydefer/directive-forge --dev
 ./vendor/bin/directive make-repository user
 
 # Générer un record
-./vendor/bin/directive make-record user-data
+./vendor/bin/directive make-record user-record
 
-# Générer un record de filtres
-./vendor/bin/directive make-filters-record user-filters
 ```
 
 ### Exemple de génération
@@ -614,3 +720,4 @@ composer require andydefer/directive-forge --dev
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
+```
