@@ -21,6 +21,7 @@ use AndyDefer\Repository\Tests\Fixtures\Repositories\TestProductRepository;
 use AndyDefer\Repository\Tests\Fixtures\Repositories\TestUserRepository;
 use AndyDefer\Repository\Tests\IntegrationTestCase;
 use AndyDefer\Repository\ValueObjects\SelectColumns;
+use AndyDefer\Repository\ValueObjects\SortColumns;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
@@ -310,11 +311,11 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
         $columns = new SelectColumns(['id', 'name', 'email', 'status']);
 
+        // ✅ Utilisation de SortColumns pour le tri simple
         $findByRecord = new FindByRecord(
             filters: $filters,
             limit: 1,
-            sortBy: 'name',
-            sortDir: SortDirection::ASC,
+            sortBy: new SortColumns('name:asc'),
             columns: $columns,
         );
 
@@ -384,6 +385,52 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertSame('John Doe', $user->name);
         $this->assertNull($user->email);
         $this->assertNull($user->status);
+    }
+
+    // ✅ NOUVEAU TEST : Tri multiple avec SortColumns
+    public function test_find_by_with_multiple_sort_columns_returns_ordered_results(): void
+    {
+        // Arrange
+        TestUser::create([
+            'name' => 'User A',
+            'email' => 'user1@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+        TestUser::create([
+            'name' => 'User A',
+            'email' => 'user2@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+        TestUser::create([
+            'name' => 'User B',
+            'email' => 'user3@example.com',
+            'status' => TestUserStatus::ACTIVE,
+            'role' => TestUserRole::USER,
+            'grade' => TestUserGrade::BRONZE,
+        ]);
+
+        $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
+
+        // ✅ Tri multiple : d'abord par name ASC, puis par id DESC (pour avoir un ordre déterministe)
+        $findByRecord = new FindByRecord(
+            filters: $filters,
+            sortBy: new SortColumns('name:asc|id:desc'),
+        );
+
+        // Act
+        $result = $this->userRepository->findBy($findByRecord);
+
+        // Assert
+        $this->assertCount(3, $result);
+
+        // Les Users A doivent venir avant User B, et entre les Users A, ordre par id desc
+        $this->assertSame('User A', $result[0]->name);
+        $this->assertSame('User A', $result[1]->name);
+        $this->assertSame('User B', $result[2]->name);
     }
 
     public function test_update_updates_only_non_null_fields_and_returns_updated_model(): void
@@ -555,6 +602,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
         $columns = new SelectColumns(['id', 'name', 'email', 'status']);
 
+        // ✅ Utilisation de SortColumns pour le tri
         $paginateRecord = new PaginateRecord(
             perPage: 3,
             page: 1,

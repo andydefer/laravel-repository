@@ -124,8 +124,10 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         $columns = $record->columns->toArray();
         $query->select($columns);
 
-        if ($record->sortBy !== null) {
-            $query->orderBy($record->sortBy, $record->sortDir->toSql());
+        if ($record->sortBy !== null && ! $record->sortBy->isEmpty()) {
+            foreach ($record->sortBy->toArray() as $column => $direction) {
+                $query->orderBy($column, $direction);
+            }
         }
 
         if ($record->limit !== null) {
