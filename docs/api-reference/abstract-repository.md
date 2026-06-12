@@ -59,7 +59,7 @@ Crée un nouveau modèle à partir d'un record.
 
 **Retourne :** `TModel` - Le modèle créé avec son ID généré
 
-**Exceptions :** Aucune exception spécifique (délégue à Eloquent)
+**Exceptions :** Aucune exception spécifique (délègue à Eloquent)
 
 **Exemple :**
 ```php
@@ -151,11 +151,19 @@ Recherche des modèles selon des critères complexes.
 $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
 $columns = new SelectColumns(['id', 'name', 'email']);
 
+// Tri simple
 $findByRecord = new FindByRecord(
     filters: $filters,
     limit: 10,
-    sortBy: 'name',
-    sortDir: SortDirection::ASC,
+    sortBy: new SortColumns('name:asc'),
+    columns: $columns
+);
+
+// Tri multi-colonnes
+$findByRecord = new FindByRecord(
+    filters: $filters,
+    limit: 10,
+    sortBy: new SortColumns('name:asc|created_at:desc|id:asc'),
     columns: $columns
 );
 
@@ -313,8 +321,7 @@ Récupère des résultats paginés selon les critères.
 $paginateRecord = new PaginateRecord(
     perPage: 15,
     page: 2,
-    sortBy: 'created_at',
-    sortDir: SortDirection::DESC,
+    sortBy: new SortColumns('created_at:desc'),
     filters: new UserFiltersRecord(status: UserStatus::ACTIVE)
 );
 
@@ -463,18 +470,25 @@ $filters = new ProductFiltersRecord(is_deleted: true);
 $repository->forceDeleteBulk($filters);
 ```
 
-### Cas 4 : Recherche avancée avec colonnes spécifiques
+### Cas 4 : Recherche avancée avec colonnes spécifiques et tri multi-colonnes
 
 ```php
 // Rechercher uniquement les noms et emails des utilisateurs actifs
 $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
 $columns = new SelectColumns(['id', 'name', 'email']);
 
+// Tri simple
 $findByRecord = new FindByRecord(
     filters: $filters,
     columns: $columns,
-    sortBy: 'name',
-    sortDir: SortDirection::ASC
+    sortBy: new SortColumns('name:asc')
+);
+
+// Tri multi-colonnes
+$findByRecord = new FindByRecord(
+    filters: $filters,
+    columns: $columns,
+    sortBy: new SortColumns('name:asc|created_at:desc')
 );
 
 $users = $userRepository->findBy($findByRecord);
@@ -568,6 +582,7 @@ Request → Repository
     ├── find() → Model::find()
     ├── findWithTrashed() → withTrashed() → Model::find()
     ├── findBy() → buildQuery() → applyFilters() → select()/orderBy()/limit() → get()
+    │   └── orderBy() → Pour chaque colonne dans SortColumns (ordre multiple)
     ├── update() → find() → array_filter() → update() → refresh()
     ├── updateRaw() → find() → update() → refresh()
     ├── delete() → find() → delete() (soft ou hard selon le modèle)
@@ -602,7 +617,8 @@ Request → Repository
 
 **Avec les Value Objects :**
 - `SelectColumns` pour filtrer les colonnes
-- `SortDirection` pour le tri (ASC/DESC)
+- `SortColumns` pour le tri simple ou multi-colonnes (ex: `'name:asc|created_at:desc'`)
+- Plusieurs colonnes de tri sont supportées via une syntaxe à barre verticale
 
 **Avec le système de pagination :**
 - Utilise `LengthAwarePaginator` de Laravel
@@ -616,10 +632,12 @@ Request → Repository
 - Limitation automatique des colonnes via `SelectColumns`
 - Pas de chargement des relations par défaut
 - Détection automatique de SoftDeletes sans overhead inutile
+- Tri multi-colonnes appliqué en une seule passe de requête
 
 **Complexité :**
-- Opérations CRUD : O(1) pour la logique métier (délégue à la BDD)
+- Opérations CRUD : O(1) pour la logique métier (délègue à la BDD)
 - findBy avec conditions : O(n) où n = nombre de filtres
+- Tri multi-colonnes : O(k) où k = nombre de colonnes de tri
 - deleteBulk / forceDeleteBulk : O(m) où m = nombre de modèles supprimés
 - restore/forceDelete : O(1) avec détection de trait
 
@@ -628,6 +646,7 @@ Request → Repository
 - `refresh()` après update recharge le modèle (requête supplémentaire)
 - `findWithTrashed()` ajoute `withTrashed()` si le modèle utilise SoftDeletes
 - `forceDeleteBulk()` supprime définitivement - opération irréversible
+- Le tri multi-colonnes peut impacter les performances sur de très grands jeux de données sans indexes appropriés
 
 ## Compatibilité
 
@@ -638,7 +657,7 @@ Request → Repository
 | Laravel 10+ | ✅ Complet | Support complet de SoftDeletes |
 | Laravel 9 | ✅ Complet | Tests passés |
 
-## Exemple complet avec SoftDelete et createRaw
+## Exemple complet avec SoftDelete, tri multi-colonnes et createRaw
 
 ```php
 <?php
@@ -646,10 +665,10 @@ Request → Repository
 declare(strict_types=1);
 
 use AndyDefer\Repository\AbstractRepository;
-use AndyDefer\Repository\Enums\SortDirection;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\ValueObjects\SelectColumns;
+use AndyDefer\Repository\ValueObjects\SortColumns;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -740,7 +759,7 @@ $filters = new ProductFiltersRecord(includeDeleted: true);
 $deletedCount = $repository->forceDeleteBulk($filters);
 echo "Permanently deleted {$deletedCount} products";
 
-// Rechercher des produits (exclut les soft deleted par défaut)
+// Rechercher des produits (exclut les soft deleted par défaut) avec tri multiple
 $filters = new ProductFiltersRecord(
     categoryId: 5,
     minPrice: 500,
@@ -749,15 +768,33 @@ $filters = new ProductFiltersRecord(
 );
 $columns = new SelectColumns(['id', 'name', 'price']);
 
+// Tri simple
 $findByRecord = new FindByRecord(
     filters: $filters,
     columns: $columns,
-    sortBy: 'price',
-    sortDir: SortDirection::ASC,
+    sortBy: new SortColumns('price:asc'),
     limit: 20
 );
 
-$products = $repository->findBy($findByRecord);
+// Tri multi-colonnes
+$findByRecordMultiSort = new FindByRecord(
+    filters: $filters,
+    columns: $columns,
+    sortBy: new SortColumns('price:asc|name:desc|id:asc'),
+    limit: 20
+);
+
+$products = $repository->findBy($findByRecordMultiSort);
+
+// Pagination avec tri multiple
+$paginateRecord = new PaginateRecord(
+    perPage: 15,
+    page: 1,
+    sortBy: new SortColumns('category_id:asc|price:desc'),
+    filters: $filters
+);
+
+$paginatedProducts = $repository->paginate($paginateRecord);
 ```
 
 ## Voir aussi
@@ -766,6 +803,7 @@ $products = $repository->findBy($findByRecord);
 - `FindByRecord` - Configuration pour les recherches
 - `PaginateRecord` - Configuration pour la pagination
 - `SelectColumns` - Value object pour les colonnes
+- `SortColumns` - Value object pour le tri simple ou multi-colonnes
 - `ModelNotFoundException` - Exception levée lors des updates
 - `EmptyRecord` - Record vide pour absence de filtres
 - `SoftDeletes` - Trait Laravel pour le soft delete

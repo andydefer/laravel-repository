@@ -1,4 +1,4 @@
-## README.md mis à jour (complet)
+Voici le README.md mis à jour avec les changements concernant le tri multi-colonnes via `SortColumns` :
 
 ```markdown
 # Laravel Repository
@@ -83,11 +83,19 @@ Le package fournit des Records standardisés pour les opérations :
 ```php
 use AndyDefer\Repository\Records\FindByRecord;
 
+// Tri simple
 $findBy = new FindByRecord(
     filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
     limit: 10,
-    sortBy: 'name',
-    sortDir: SortDirection::ASC,
+    sortBy: new SortColumns('name:asc'),
+    columns: new SelectColumns(['id', 'name', 'email']),
+);
+
+// Tri multi-colonnes
+$findBy = new FindByRecord(
+    filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
+    limit: 10,
+    sortBy: new SortColumns('name:asc|created_at:desc|id:asc'),
     columns: new SelectColumns(['id', 'name', 'email']),
 );
 ```
@@ -96,8 +104,7 @@ $findBy = new FindByRecord(
 |-----------|------|--------|-------------|
 | `filters` | `AbstractRecord` | `EmptyRecord` | Filtres de recherche |
 | `limit` | `?int` | `null` | Limite de résultats |
-| `sortBy` | `?string` | `null` | Champ de tri |
-| `sortDir` | `SortDirection` | `SortDirection::ASC` | Direction du tri |
+| `sortBy` | `?SortColumns` | `null` | Colonnes de tri (supporte le multi-colonnes) |
 | `columns` | `SelectColumns` | `SelectColumns::all()` | Colonnes à sélectionner |
 
 #### PaginateRecord
@@ -108,8 +115,16 @@ use AndyDefer\Repository\Records\PaginateRecord;
 $paginate = new PaginateRecord(
     perPage: 15,
     page: 1,
-    sortBy: 'name',
-    sortDir: SortDirection::ASC,
+    sortBy: new SortColumns('created_at:desc'),
+    filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
+    columns: new SelectColumns(['id', 'name', 'email']),
+);
+
+// Tri multi-colonnes sur plusieurs champs
+$paginate = new PaginateRecord(
+    perPage: 15,
+    page: 1,
+    sortBy: new SortColumns('category_id:asc|price:desc'),
     filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
     columns: new SelectColumns(['id', 'name', 'email']),
 );
@@ -119,8 +134,7 @@ $paginate = new PaginateRecord(
 |-----------|------|--------|-------------|
 | `perPage` | `int` | `15` | Éléments par page |
 | `page` | `int` | `1` | Numéro de page |
-| `sortBy` | `?string` | `null` | Champ de tri |
-| `sortDir` | `SortDirection` | `SortDirection::ASC` | Direction du tri |
+| `sortBy` | `?SortColumns` | `null` | Colonnes de tri (supporte le multi-colonnes) |
 | `filters` | `AbstractRecord` | `EmptyRecord` | Filtres de recherche |
 | `columns` | `SelectColumns` | `SelectColumns::all()` | Colonnes à sélectionner |
 
@@ -136,18 +150,33 @@ $info = $repository->info();
 // }
 ```
 
-### Énumération SortDirection
+### Objet Valeur SortColumns
+
+Le package fournit un Value Object pour gérer le tri simple ou multi-colonnes :
 
 ```php
-use AndyDefer\Repository\Enums\SortDirection;
+use AndyDefer\Repository\ValueObjects\SortColumns;
 
-$direction = SortDirection::ASC;
+// Tri simple
+$sort = new SortColumns('name:asc');
+$sort->toArray();  // ['name' => 'asc']
 
-$direction->isAsc();     // true
-$direction->isDesc();    // false
-$direction->opposite();  // SortDirection::DESC
-$direction->toSql();     // 'asc'
+// Tri multi-colonnes (syntaxe à barre verticale)
+$sort = new SortColumns('name:asc|created_at:desc|id:asc');
+$sort->toArray();  // ['name' => 'asc', 'created_at' => 'desc', 'id' => 'asc']
+
+// Depuis un tableau associatif
+$sort = SortColumns::fromArray(['name' => 'asc', 'created_at' => 'desc']);
+
+// Vérifications
+$sort->hasColumn('name');     // true
+$sort->getDirection('name');  // 'asc'
+$sort->count();               // 3
 ```
+
+**Format de chaîne :** `colonne:direction|colonne:direction`
+- `direction` peut être `asc` ou `desc`
+- Les colonnes sont séparées par le caractère `|` (pipe)
 
 ### Objet Valeur SelectColumns
 
@@ -282,7 +311,7 @@ use App\Records\UserRecord;
 use App\Records\UserFiltersRecord;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
-use AndyDefer\Repository\Enums\SortDirection;
+use AndyDefer\Repository\ValueObjects\SortColumns;
 
 class UserService
 {
@@ -318,28 +347,26 @@ class UserService
         return $this->repository->delete($id);
     }
 
-    // Lister avec filtres
-    public function listActiveUsers(): array
+    // Lister avec filtres et tri multiple
+    public function listActiveUsersByStatusAndName(): array
     {
         $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
         $findBy = new FindByRecord(
             filters: $filters,
             limit: 50,
-            sortBy: 'name',
-            sortDir: SortDirection::ASC,
+            sortBy: new SortColumns('status:asc|name:asc'),
         );
         
         return $this->repository->findBy($findBy)->all();
     }
 
-    // Paginer les résultats
+    // Paginer les résultats avec tri multiple
     public function getPaginatedUsers(int $page = 1): LengthAwarePaginator
     {
         $paginate = new PaginateRecord(
             perPage: 15,
             page: $page,
-            sortBy: 'created_at',
-            sortDir: SortDirection::DESC,
+            sortBy: new SortColumns('created_at:desc|id:asc'),
         );
         
         return $this->repository->paginate($paginate);
@@ -381,7 +408,7 @@ class UserService
 | `createRaw(array $data)` | `$data` | `Model` | Créer un enregistrement à partir de données brutes |
 | `find(int $id)` | `$id` | `Model|null` | Trouver par ID |
 | `findWithTrashed(int $id)` | `$id` | `Model|null` | Trouver par ID (inclus soft deleted) |
-| `findBy(FindByRecord $record)` | `$record` | `Collection<Model>` | Rechercher avec critères |
+| `findBy(FindByRecord $record)` | `$record` | `Collection<Model>` | Rechercher avec critères (supporte tri multiple) |
 | `update(int $id, AbstractRecord $record)` | `$id, $record` | `Model` | Mettre à jour (champs non-nuls uniquement) |
 | `updateRaw(int $id, array $data)` | `$id, $data` | `Model` | Mettre à jour avec données brutes |
 | `delete(int $id)` | `$id` | `bool` | Supprimer par ID (soft delete si disponible) |
@@ -389,7 +416,7 @@ class UserService
 | `forceDelete(int $id)` | `$id` | `bool` | Supprimer définitivement |
 | `count(?AbstractRecord $criteria)` | `$criteria` | `int` | Compter les enregistrements |
 | `exists(AbstractRecord $criteria)` | `$criteria` | `bool` | Vérifier l'existence |
-| `paginate(PaginateRecord $record)` | `$record` | `LengthAwarePaginator` | Résultats paginés |
+| `paginate(PaginateRecord $record)` | `$record` | `LengthAwarePaginator` | Résultats paginés (supporte tri multiple) |
 | `deleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression groupée (soft delete si disponible) |
 | `forceDeleteBulk(AbstractRecord $criteria)` | `$criteria` | `int` | Suppression définitive groupée |
 
@@ -404,7 +431,7 @@ class UserService
 | Exception | Quand |
 |-----------|-------|
 | `ModelNotFoundException` | `update()` ou `updateRaw()` sur un ID inexistant |
-| `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` |
+| `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` ou `SortColumns` |
 
 ---
 
@@ -488,7 +515,21 @@ $data = [
 $user = $repository->createRaw($data);
 ```
 
-### 6. Tester vos Repositories
+### 6. Trier avec SortColumns
+
+```php
+// ✅ BON - Tri simple
+$sort = new SortColumns('name:asc');
+
+// ✅ BON - Tri multi-colonnes pour des tris complexes
+$sort = new SortColumns('category_id:asc|price:desc|id:asc');
+
+// ✅ BON - Format lisible pour les tris multi-colonnes
+$sortString = 'status:asc|created_at:desc|name:asc';
+$sort = new SortColumns($sortString);
+```
+
+### 7. Tester vos Repositories
 
 ```php
 final class UserRepositoryTest extends IntegrationTestCase
@@ -530,12 +571,30 @@ final class UserRepositoryTest extends IntegrationTestCase
             'email' => null,
         ]);
     }
+    
+    public function test_find_by_with_multiple_sort_columns(): void
+    {
+        // Créer des utilisateurs
+        $this->repository->create(new UserRecord(name: 'User A', email: 'a@test.com'));
+        $this->repository->create(new UserRecord(name: 'User A', email: 'b@test.com'));
+        $this->repository->create(new UserRecord(name: 'User B', email: 'c@test.com'));
+        
+        $findBy = new FindByRecord(
+            sortBy: new SortColumns('name:asc|id:desc'),
+        );
+        
+        $results = $this->repository->findBy($findBy);
+        
+        $this->assertSame('User A', $results[0]->name);
+        $this->assertSame('User A', $results[1]->name);
+        $this->assertSame('User B', $results[2]->name);
+    }
 }
 ```
 
 ---
 
-## Exemple complet avec filtres complexes
+## Exemple complet avec filtres complexes et tri multiple
 
 ```php
 final class OrderRepository extends AbstractRepository
@@ -584,7 +643,7 @@ final class OrderRepository extends AbstractRepository
     }
 }
 
-// Utilisation
+// Utilisation avec tri multi-colonnes
 $filters = new OrderFiltersRecord(
     fromDate: '2024-01-01',
     toDate: '2024-12-31',
@@ -596,10 +655,9 @@ $filters = new OrderFiltersRecord(
 $paginate = new PaginateRecord(
     perPage: 20,
     page: 1,
-    sortBy: 'created_at',
-    sortDir: SortDirection::DESC,
+    sortBy: new SortColumns('status:asc|created_at:desc|total:desc'),
     filters: $filters,
-    columns: new SelectColumns(['id', 'order_number', 'total', 'status']),
+    columns: new SelectColumns(['id', 'order_number', 'total', 'status', 'created_at']),
 );
 
 $orders = $repository->paginate($paginate);
@@ -700,7 +758,6 @@ composer require andydefer/directive-forge --dev
 
 # Générer un record
 ./vendor/bin/directive make-record user-record
-
 ```
 
 ### Exemple de génération
