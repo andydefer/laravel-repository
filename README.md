@@ -1,6 +1,3 @@
-Voici le README.md mis à jour avec les changements concernant le tri multi-colonnes via `SortColumns` :
-
-```markdown
 # Laravel Repository
 
 **Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records et Eloquent.**
