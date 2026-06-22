@@ -41,14 +41,14 @@ interface AbstractRepositoryInterface
     /**
      * @return TModel|null
      */
-    public function find(int $id): ?Model;
+    public function find(int|string $id): ?Model;
 
     /**
      * Find a model by its ID including soft deleted ones.
      *
      * @return TModel|null
      */
-    public function findWithTrashed(int $id): ?Model;
+    public function findWithTrashed(int|string $id): ?Model;
 
     /**
      * @return Collection<int, TModel>
@@ -61,7 +61,7 @@ interface AbstractRepositoryInterface
      *
      * @throws \RuntimeException
      */
-    public function update(int $id, AbstractRecord $record): Model;
+    public function update(int|string $id, AbstractRecord $record): Model;
 
     /**
      * Update a model with raw array data.
@@ -70,26 +70,26 @@ interface AbstractRepositoryInterface
      * @param  array<string, mixed>  $data
      * @return TModel
      */
-    public function updateRaw(int $id, array $data): Model;
+    public function updateRaw(int|string $id, array $data): Model;
 
     /**
      * Delete a model by ID (soft delete if SoftDeletes trait is used).
      */
-    public function delete(int $id): bool;
+    public function delete(int|string $id): bool;
 
     /**
      * Restore a soft-deleted model by ID.
      *
      * @return bool True if restored, false if not found or not soft deleted
      */
-    public function restore(int $id): bool;
+    public function restore(int|string $id): bool;
 
     /**
      * Force delete a model by ID (hard delete, even if soft deleted).
      *
      * @return bool True if force deleted, false if not found
      */
-    public function forceDelete(int $id): bool;
+    public function forceDelete(int|string $id): bool;
 
     public function count(?AbstractRecord $criteria = null): int;
 

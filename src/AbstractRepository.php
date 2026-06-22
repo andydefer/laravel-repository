@@ -85,7 +85,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return TModel|null
      */
-    public function find(int $id): ?Model
+    public function find(int|string $id): ?Model
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
@@ -98,7 +98,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return TModel|null
      */
-    public function findWithTrashed(int $id): ?Model
+    public function findWithTrashed(int|string $id): ?Model
     {
         $query = $this->model->newQuery();
 
@@ -148,7 +148,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @throws ModelNotFoundException
      */
-    public function update(int $id, AbstractRecord $record): Model
+    public function update(int|string $id, AbstractRecord $record): Model
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
@@ -177,7 +177,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  array<string, mixed>  $data
      * @return TModel
      */
-    public function updateRaw(int $id, array $data): Model
+    public function updateRaw(int|string $id, array $data): Model
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
@@ -199,7 +199,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return bool True if deleted, false if not found
      */
-    public function delete(int $id): bool
+    public function delete(int|string $id): bool
     {
         /** @var TModel|null $model */
         $model = $this->model->newQuery()->find($id);
@@ -216,7 +216,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return bool True if restored, false if not found or not soft deleted
      */
-    public function restore(int $id): bool
+    public function restore(int|string $id): bool
     {
         $model = $this->findWithTrashed($id);
 
@@ -236,7 +236,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return bool True if force deleted, false if not found
      */
-    public function forceDelete(int $id): bool
+    public function forceDelete(int|string $id): bool
     {
         $model = $this->findWithTrashed($id);
 
