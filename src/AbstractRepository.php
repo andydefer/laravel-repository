@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
 
 /**
  * @template TModel of Model
- * @template TRecord of AbstractRecord
+* @template TRecord of AbstractRecord
  *
  * @implements AbstractRepositoryInterface<TModel, TRecord>
  */
