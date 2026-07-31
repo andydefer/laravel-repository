@@ -8,7 +8,7 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
 /**
  * @template TModel of \Illuminate\Database\Eloquent\Model
- * @template TRecord of \AndyDefer\Records\AbstractRecord
+ * @template TRecord of \AndyDefer\DomainStructures\Abstracts\AbstractRecord
  */
 final class RepositoryInfoRecord extends AbstractRecord
 {

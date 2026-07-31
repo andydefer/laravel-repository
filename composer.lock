@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bbdf74bbe1c9e7c8e94c65785350d30a",
+    "content-hash": "f2a7cf13d0260c2a2b258fea4d69544d",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -123,16 +123,16 @@
         },
         {
             "name": "andydefer/laravel-cluster",
-            "version": "v0.4.0",
+            "version": "v0.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-cluster.git",
-                "reference": "9c82784a63f1680a403dc02f2f161bf29ad58376"
+                "reference": "8e5d2fc1a44cf2b43e1f0ff8b9a6cbedc4e9ce04"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-cluster/zipball/9c82784a63f1680a403dc02f2f161bf29ad58376",
-                "reference": "9c82784a63f1680a403dc02f2f161bf29ad58376",
+                "url": "https://api.github.com/repos/andydefer/laravel-cluster/zipball/8e5d2fc1a44cf2b43e1f0ff8b9a6cbedc4e9ce04",
+                "reference": "8e5d2fc1a44cf2b43e1f0ff8b9a6cbedc4e9ce04",
                 "shasum": ""
             },
             "require": {
@@ -171,9 +171,9 @@
             "description": "A powerful cluster query parser and filter for Laravel with JSON column support",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-cluster/issues",
-                "source": "https://github.com/andydefer/laravel-cluster/tree/v0.4.0"
+                "source": "https://github.com/andydefer/laravel-cluster/tree/v0.5.0"
             },
-            "time": "2026-07-31T08:37:32+00:00"
+            "time": "2026-07-31T09:44:40+00:00"
         },
         {
             "name": "andydefer/php-client",

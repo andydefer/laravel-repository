@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('role');
             $table->integer('grade')->nullable();
             $table->json('metadata')->nullable();
+            $table->json('preferences')->nullable();
             $table->timestamps();
         });
     }

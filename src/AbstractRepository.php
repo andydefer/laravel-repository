@@ -10,6 +10,7 @@ use AndyDefer\Repository\Exceptions\ModelNotFoundException;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\Records\RepositoryInfoRecord;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -80,7 +81,6 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @param  string  $column  The JSON column containing cluster data
      * @param  string  $query  The cluster query expression
-     * @return $this
      *
      * @example
      * // Simple equality condition
@@ -106,9 +106,41 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
-     * Clear all applied cluster filters.
+     * Apply multiple cluster filters at once.
      *
-     * @return $this
+     * @param  array<string, string>  $queries  Column name → query expression
+     *
+     * @example
+     * $repository->whereClusters([
+     *     'metadata' => 'status=active & role=admin',
+     *     'information' => 'color=blue'
+     * ]);
+     */
+    public function whereClusters(array $queries): self
+    {
+        foreach ($queries as $column => $query) {
+            $this->whereCluster($column, $query);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Apply cluster filters from a ClusterQueries VO.
+     *
+     * @param  ClusterQueries  $queries  The cluster queries to apply
+     */
+    public function whereClusterQueries(ClusterQueries $queries): self
+    {
+        foreach ($queries->all() as $column => $query) {
+            $this->whereCluster($column, $query);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Clear all applied cluster filters.
      */
     public function clearClusterFilters(): self
     {
@@ -208,6 +240,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     public function findBy(FindByRecord $record): Collection
     {
         $query = $this->buildQuery($record->filters);
+
+        // Apply cluster queries from the FindByRecord
+        $query = $this->applyClusterQueries($query, $record->clusterQueries);
 
         $this->applySelectColumns($query, $record);
         $this->applySorting($query, $record);
@@ -378,6 +413,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     {
         $query = $this->buildQuery($record->filters);
 
+        // Apply cluster queries from the PaginateRecord
+        $query = $this->applyClusterQueries($query, $record->clusterQueries);
+
         if ($record->sortBy !== null) {
             $query->orderBy($record->sortBy, $record->sortDir->toSql());
         }
@@ -449,6 +487,26 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  AbstractRecord  $filters  The filter criteria
      */
     abstract protected function applyFilters(Builder $query, AbstractRecord $filters): void;
+
+    /**
+     * Apply cluster queries from a VO to a query builder.
+     *
+     * @param  Builder<TModel>  $query  The query builder
+     * @param  ClusterQueries|null  $clusterQueries  The cluster queries to apply
+     * @return Builder<TModel>
+     */
+    private function applyClusterQueries(Builder $query, ?ClusterQueries $clusterQueries): Builder
+    {
+        if ($clusterQueries === null) {
+            return $query;
+        }
+
+        foreach ($clusterQueries->all() as $column => $queryExpression) {
+            $query->whereCluster($column, $queryExpression);
+        }
+
+        return $query;
+    }
 
     /**
      * Find a model by ID or throw an exception.

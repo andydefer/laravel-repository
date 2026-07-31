@@ -21,6 +21,7 @@ class TestUser extends Model
         'role',
         'grade',
         'metadata',
+        'preferences',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class TestUser extends Model
             'role' => TestUserRole::class,
             'grade' => TestUserGrade::class,
             'metadata' => ClusterCast::class,
+            'preferences' => ClusterCast::class,
         ];
     }
 }

@@ -67,13 +67,62 @@ Applique un filtre cluster sur une colonne JSON. Permet des requêtes complexes 
 
 **Retourne :** `$this` (fluent interface)
 
-**Exceptions :** Aucune (les erreurs de syntaxe sont propagées par le moteur de cluster)
+**Exceptions :** Les erreurs de syntaxe sont propagées par le moteur de cluster
 
 **Exemple :**
 ```php
-$repository = new UserRepository();
 $users = $repository
     ->whereCluster('metadata', 'status=active & age>25')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+```
+
+---
+
+### `whereClusters(array $queries): self`
+
+Applique plusieurs filtres cluster en une seule fois.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$queries` | `array<string, string>` | Tableau associatif colonne → requête |
+
+**Retourne :** `$this` (fluent interface)
+
+**Exceptions :** Les erreurs de syntaxe sont propagées par le moteur de cluster
+
+**Exemple :**
+```php
+$users = $repository
+    ->whereClusters([
+        'metadata' => 'status=active & role=admin',
+        'preferences' => 'color=blue & size=large',
+    ])
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+```
+
+---
+
+### `whereClusterQueries(ClusterQueries $queries): self`
+
+Applique des filtres cluster à partir d'un Value Object `ClusterQueries`.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$queries` | `ClusterQueries` | Value Object contenant les requêtes cluster |
+
+**Retourne :** `$this` (fluent interface)
+
+**Exceptions :** Les erreurs de syntaxe sont propagées par le moteur de cluster
+
+**Exemple :**
+```php
+$clusterQueries = new ClusterQueries([
+    'metadata' => 'status=active',
+    'preferences' => 'color=blue',
+]);
+
+$users = $repository
+    ->whereClusterQueries($clusterQueries)
     ->findBy(new FindByRecord(filters: new EmptyRecord()));
 ```
 
@@ -234,18 +283,19 @@ Trouve des modèles correspondant à des critères de recherche.
 $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
 $sortBy = new SortColumns('created_at:desc');
 $columns = new SelectColumns(['id', 'name', 'email']);
+$clusterQueries = new ClusterQueries([
+    'metadata' => 'verified=true',
+]);
 
 $record = new FindByRecord(
     filters: $filters,
     sortBy: $sortBy,
     limit: 10,
-    columns: $columns
+    columns: $columns,
+    clusterQueries: $clusterQueries,
 );
 
 $users = $repository->findBy($record);
-foreach ($users as $user) {
-    echo $user->name;
-}
 ```
 
 ---
@@ -445,6 +495,9 @@ Paginer les résultats correspondant aux critères.
 ```php
 $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
 $columns = new SelectColumns(['id', 'name', 'email']);
+$clusterQueries = new ClusterQueries([
+    'metadata' => 'verified=true',
+]);
 
 $record = new PaginateRecord(
     perPage: 15,
@@ -452,7 +505,8 @@ $record = new PaginateRecord(
     filters: $filters,
     columns: $columns,
     sortBy: 'created_at',
-    sortDir: SortDir::DESC
+    sortDir: SortDirection::DESC,
+    clusterQueries: $clusterQueries,
 );
 
 $paginator = $repository->paginate($record);
@@ -484,70 +538,19 @@ echo "$count utilisateurs invités supprimés";
 
 ## Cas d'utilisation
 
-### Cas 1 : Repository utilisateur avec filtres avancés
-
-**Problème :** Implémenter un repository pour les utilisateurs avec des filtres de recherche et des soft deletes.
-
-**Solution :** Étendre `AbstractRepository` et implémenter `applyFilters()`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Repository\AbstractRepository;
-use Illuminate\Database\Eloquent\Builder;
-
-final class UserRepository extends AbstractRepository
-{
-    public function __construct()
-    {
-        parent::__construct(
-            User::class,
-            UserRecord::class
-        );
-    }
-
-    protected function applyFilters(Builder $query, AbstractRecord $filters): void
-    {
-        if ($filters instanceof UserFiltersRecord) {
-            if ($filters->name !== null) {
-                $query->where('name', 'like', "%{$filters->name}%");
-            }
-            
-            if ($filters->email !== null) {
-                $query->where('email', $filters->email);
-            }
-            
-            if ($filters->status !== null) {
-                $query->where('status', $filters->status);
-            }
-        }
-    }
-}
-
-// Utilisation
-$repository = new UserRepository();
-$filters = new UserFiltersRecord(
-    name: 'John',
-    status: UserStatus::ACTIVE
-);
-
-$users = $repository->findBy(
-    new FindByRecord(filters: $filters)
-);
-```
-
----
-
-### Cas 2 : Filtrage JSON avec cluster
+### Cas 1 : Filtrage JSON avec cluster
 
 **Problème :** Rechercher des utilisateurs avec des métadonnées complexes stockées en JSON.
 
 **Solution :** Utiliser `whereCluster()` pour interroger la colonne JSON.
 
 ```php
-// Recherche des utilisateurs ayant un statut 'active' et le rôle 'admin'
+// Recherche simple sur une colonne
+$users = $repository
+    ->whereCluster('metadata', 'status=active')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// Recherche avec conditions combinées
 $users = $repository
     ->whereCluster('metadata', 'status=active & role=admin')
     ->findBy(new FindByRecord(filters: new EmptyRecord()));
@@ -555,21 +558,55 @@ $users = $repository
 // Recherche avec agrégation
 $users = $repository
     ->whereCluster('metadata', 'COUNT(addresses) > 2')
-    ->paginate(new PaginateRecord(
-        perPage: 10,
-        page: 1,
-        filters: new EmptyRecord()
-    ));
+    ->paginate(new PaginateRecord(perPage: 10, page: 1, filters: new EmptyRecord()));
 
 // Recherche avec chemin de tableau
 $users = $repository
     ->whereCluster('metadata', 'addresses[city=Kinshasa]')
-    ->count(); // 5
+    ->count();
 ```
 
----
+### Cas 2 : Filtrage sur plusieurs colonnes JSON
 
-### Cas 3 : Mise à jour sélective avec gestion des NULL
+**Problème :** Filtrer sur deux colonnes JSON différentes en une seule requête.
+
+**Solution :** Utiliser `whereClusters()` avec un tableau associatif.
+
+```php
+$users = $repository
+    ->whereClusters([
+        'metadata' => 'status=active & role=admin',
+        'preferences' => 'color=blue & size=large',
+    ])
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+```
+
+### Cas 3 : Utilisation de ClusterQueries dans les Records
+
+**Problème :** Passer des requêtes cluster dans un Record de recherche.
+
+**Solution :** Utiliser `ClusterQueries` dans `FindByRecord` ou `PaginateRecord`.
+
+```php
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
+
+$queries = new ClusterQueries([
+    'metadata' => 'status=active & role=admin',
+    'preferences' => 'color=blue',
+]);
+
+$findBy = new FindByRecord(
+    filters: new UserFiltersRecord(status: UserStatus::ACTIVE),
+    limit: 10,
+    sortBy: new SortColumns('name:asc|created_at:desc'),
+    columns: new SelectColumns(['id', 'name', 'email']),
+    clusterQueries: $queries,
+);
+
+$users = $repository->findBy($findBy);
+```
+
+### Cas 4 : Mise à jour sélective avec gestion des NULL
 
 **Problème :** Mettre à jour uniquement certains champs tout en permettant de définir des valeurs `NULL`.
 
@@ -588,39 +625,6 @@ $user = $repository->updateRaw(1, [
     'email' => null, // Supprime l'email
     'status' => UserStatus::SUSPENDED->value,
 ]);
-```
-
----
-
-### Cas 4 : Gestion des soft deletes
-
-**Problème :** Gérer la suppression et la restauration des modèles.
-
-**Solution :** Utiliser les méthodes dédiées `delete()`, `restore()`, et `forceDelete()`.
-
-```php
-// Soft delete
-$repository->delete(42);
-
-// Vérifier si le modèle est supprimé
-$user = $repository->findWithTrashed(42);
-if ($user !== null && $user->trashed()) {
-    echo "L'utilisateur est supprimé";
-}
-
-// Restaurer
-$restored = $repository->restore(42);
-if ($restored) {
-    echo "L'utilisateur a été restauré";
-}
-
-// Suppression définitive
-$repository->forceDelete(42);
-
-// Suppression définitive en masse
-$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
-$count = $repository->forceDeleteBulk($criteria);
-echo "$count utilisateurs supprimés définitivement";
 ```
 
 ---
@@ -649,6 +653,7 @@ echo "$count utilisateurs supprimés définitivement";
 ### Avec LaravelCluster
 - Utilise la méthode `whereCluster()` sur le query builder
 - Supporte les requêtes complexes sur colonnes JSON
+- Intègre `ClusterQueries` pour des requêtes multiples
 
 ## Performance
 
@@ -689,6 +694,7 @@ use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
 use AndyDefer\Repository\Records\SelectColumns;
 use AndyDefer\Repository\Records\SortColumns;
+use AndyDefer\Repository\ValueObjects\ClusterQueries;
 use Illuminate\Database\Eloquent\Builder;
 
 final class ProductRepository extends AbstractRepository
@@ -742,26 +748,30 @@ $filters = new ProductFiltersRecord(
 
 $sortBy = new SortColumns('price:asc|created_at:desc');
 $columns = new SelectColumns(['id', 'name', 'price', 'stock']);
+$clusterQueries = new ClusterQueries([
+    'metadata' => 'category=laptop & stock>10',
+    'preferences' => 'warranty=true',
+]);
 
 $record = new FindByRecord(
     filters: $filters,
     sortBy: $sortBy,
     limit: 20,
-    columns: $columns
+    columns: $columns,
+    clusterQueries: $clusterQueries,
 );
 
-$products = $repository
-    ->whereCluster('metadata', 'category=laptop & stock>10')
-    ->findBy($record);
+$products = $repository->findBy($record);
 
-// Pagination
+// Pagination avec cluster queries
 $paginator = $repository->paginate(new PaginateRecord(
     perPage: 15,
     page: 2,
     filters: $filters,
     columns: $columns,
     sortBy: 'price',
-    sortDir: SortDir::DESC
+    sortDir: SortDirection::DESC,
+    clusterQueries: $clusterQueries,
 ));
 
 // Mise à jour et suppression
@@ -784,5 +794,5 @@ $activeCount = $repository->count(
 - `FindByRecord` - Configuration de recherche et de tri
 - `PaginateRecord` - Configuration de pagination
 - `RepositoryInfoRecord` - Informations du repository
+- `ClusterQueries` - Value Object pour les requêtes cluster multiples
 - `ModelNotFoundException` - Exception de modèle non trouvé
-- `LaravelCluster` - Moteur de requêtes JSON complexes
