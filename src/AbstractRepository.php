@@ -6,6 +6,7 @@ namespace AndyDefer\Repository;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\DomainStructures\Utils\EmptyRecord;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\Repository\Exceptions\ModelNotFoundException;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Abstract repository providing CRUD operations with type-safe records.
@@ -606,5 +608,26 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         if ($record->limit !== null) {
             $query->limit($record->limit);
         }
+    }
+
+    protected function safeDecodeJson(string $json): ?array
+    {
+        $data = json_decode($json, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $data : null;
+    }
+
+    protected function detectDriver(): DatabaseDriver
+    {
+        $driverName = DB::connection()->getDriverName();
+
+        return match ($driverName) {
+            'mysql' => DatabaseDriver::MYSQL,
+            'pgsql' => DatabaseDriver::PGSQL,
+            'sqlite' => DatabaseDriver::SQLITE,
+            default => throw new \RuntimeException(
+                sprintf('Unsupported database driver: "%s". Supported drivers: mysql, pgsql, sqlite', $driverName)
+            ),
+        };
     }
 }
