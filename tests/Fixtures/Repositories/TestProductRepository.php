@@ -48,5 +48,10 @@ final class TestProductRepository extends AbstractRepository
         } elseif ($filters->is_deleted === false) {
             $query->withoutTrashed();
         }
+
+        // ✅ Filtre cluster_query
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
+        }
     }
 }

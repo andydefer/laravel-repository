@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Repository\Tests\Fixtures\Models;
 
+use AndyDefer\LaravelCluster\Casts\ClusterCast;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -18,6 +19,7 @@ class TestProduct extends Model
         'price',
         'stock',
         'is_active',
+        'metadata',
     ];
 
     protected $casts = [
@@ -25,5 +27,6 @@ class TestProduct extends Model
         'stock' => 'integer',
         'is_active' => 'boolean',
         'deleted_at' => 'datetime',
+        'metadata' => ClusterCast::class,
     ];
 }

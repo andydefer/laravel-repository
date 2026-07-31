@@ -11,9 +11,6 @@ use AndyDefer\Repository\Tests\Fixtures\Records\TestUserFiltersRecord;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserRecord;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * @extends AbstractRepository<TestUser, TestUserRecord>
- */
 final class TestUserRepository extends AbstractRepository
 {
     public function __construct()
@@ -45,6 +42,11 @@ final class TestUserRepository extends AbstractRepository
 
         if ($filters->grade !== null) {
             $query->where('grade', $filters->grade);
+        }
+
+        // ✅ Filtre cluster_query
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
         }
     }
 }

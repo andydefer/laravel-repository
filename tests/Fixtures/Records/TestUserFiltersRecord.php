@@ -17,5 +17,6 @@ final class TestUserFiltersRecord extends AbstractRecord
         public readonly ?TestUserStatus $status = null,
         public readonly ?TestUserRole $role = null,
         public readonly ?TestUserGrade $grade = null,
+        public readonly ?string $cluster_query = null,
     ) {}
 }

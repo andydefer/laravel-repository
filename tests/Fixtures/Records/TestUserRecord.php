@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Repository\Tests\Fixtures\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserGrade;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserRole;
 use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserStatus;
@@ -17,5 +18,6 @@ final class TestUserRecord extends AbstractRecord
         public readonly ?TestUserStatus $status = null,
         public readonly ?TestUserRole $role = null,
         public readonly ?TestUserGrade $grade = null,
+        public readonly ?ClusterVO $metadata = null,
     ) {}
 }

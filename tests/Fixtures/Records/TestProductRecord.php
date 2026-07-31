@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Repository\Tests\Fixtures\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 final class TestProductRecord extends AbstractRecord
 {
@@ -17,5 +18,6 @@ final class TestProductRecord extends AbstractRecord
         public readonly ?string $created_at = null,
         public readonly ?string $updated_at = null,
         public readonly ?string $deleted_at = null,
+        public readonly ?ClusterVO $metadata = null,
     ) {}
 }

@@ -14,5 +14,6 @@ final class TestProductFilterRecord extends AbstractRecord
         public readonly ?float $max_price = null,
         public readonly ?bool $is_active = null,
         public readonly ?bool $is_deleted = null,
+        public readonly ?string $cluster_query = null,
     ) {}
 }

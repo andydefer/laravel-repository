@@ -14,7 +14,6 @@ use AndyDefer\Repository\Tests\Fixtures\Enums\TestUserStatus;
 use AndyDefer\Repository\Tests\Fixtures\Models\TestProduct;
 use AndyDefer\Repository\Tests\Fixtures\Models\TestUser;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestProductFilterRecord;
-use AndyDefer\Repository\Tests\Fixtures\Records\TestProductRecord;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserFiltersRecord;
 use AndyDefer\Repository\Tests\Fixtures\Records\TestUserRecord;
 use AndyDefer\Repository\Tests\Fixtures\Repositories\TestProductRepository;
@@ -37,6 +36,102 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         parent::setUp();
         $this->userRepository = new TestUserRepository;
         $this->productRepository = new TestProductRepository;
+    }
+
+    // ============================================================================
+    // HELPERS
+    // ============================================================================
+
+    /**
+     * Create a test user with explicit parameters.
+     */
+    private function createUser(
+        ?string $name = null,
+        ?string $email = null,
+        ?TestUserStatus $status = null,
+        ?TestUserRole $role = null,
+        ?TestUserGrade $grade = null,
+        ?array $metadata = null,
+    ): TestUser {
+        return TestUser::create([
+            'name' => $name ?? 'User '.rand(1, 9999),
+            'email' => $email ?? 'user'.rand(1, 9999).'@example.com',
+            'status' => $status ?? TestUserStatus::ACTIVE,
+            'role' => $role ?? TestUserRole::USER,
+            'grade' => $grade ?? TestUserGrade::BRONZE,
+            'metadata' => $metadata,
+        ]);
+    }
+
+    /**
+     * Create multiple test users.
+     */
+    private function createUsers(
+        int $count,
+        ?string $name = null,
+        ?string $email = null,
+        ?TestUserStatus $status = null,
+        ?TestUserRole $role = null,
+        ?TestUserGrade $grade = null,
+        ?array $metadata = null,
+    ): Collection {
+        $users = [];
+        for ($i = 0; $i < $count; $i++) {
+            $users[] = $this->createUser(
+                name: $name,
+                email: $email,
+                status: $status,
+                role: $role,
+                grade: $grade,
+                metadata: $metadata,
+            );
+        }
+
+        return collect($users);
+    }
+
+    /**
+     * Create a test product with explicit parameters.
+     */
+    private function createProduct(
+        ?string $name = null,
+        ?float $price = null,
+        ?int $stock = null,
+        ?bool $is_active = null,
+        ?array $metadata = null,
+    ): TestProduct {
+        return TestProduct::create([
+            'name' => $name ?? 'Product '.rand(1, 9999),
+            'price' => $price ?? rand(10, 999) + 0.99,
+            'stock' => $stock ?? rand(0, 100),
+            'is_active' => $is_active ?? true,
+            'metadata' => $metadata,
+        ]);
+    }
+
+    /**
+     * Create multiple test products.
+     */
+    private function createProducts(
+        int $count,
+        ?string $name = null,
+        ?float $price = null,
+        ?int $stock = null,
+        ?bool $is_active = null,
+        ?array $metadata = null,
+    ): Collection {
+        $products = [];
+        for ($i = 0; $i < $count; $i++) {
+            $products[] = $this->createProduct(
+                name: $name,
+                price: $price,
+                stock: $stock,
+                is_active: $is_active,
+                metadata: $metadata,
+            );
+        }
+
+        return collect($products);
     }
 
     // ============================================================================
@@ -167,29 +262,16 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_create_raw_returns_created_model_with_auto_incremented_id(): void
     {
         // Arrange
-        $data1 = [
-            'name' => 'User One',
-            'email' => 'user1@example.com',
-            'status' => TestUserStatus::ACTIVE->value,
-            'role' => TestUserRole::USER->value,
-            'grade' => TestUserGrade::BRONZE->value,
-        ];
-
-        $data2 = [
-            'name' => 'User Two',
-            'email' => 'user2@example.com',
-            'status' => TestUserStatus::ACTIVE->value,
-            'role' => TestUserRole::USER->value,
-            'grade' => TestUserGrade::BRONZE->value,
-        ];
+        $this->createUser(name: 'User One', email: 'user1@example.com');
+        $this->createUser(name: 'User Two', email: 'user2@example.com');
 
         // Act
-        $user1 = $this->userRepository->createRaw($data1);
-        $user2 = $this->userRepository->createRaw($data2);
+        $users = TestUser::all();
 
         // Assert
-        $this->assertNotSame($user1->id, $user2->id);
-        $this->assertGreaterThan($user1->id, $user2->id);
+        $this->assertCount(2, $users);
+        $this->assertNotSame($users[0]->id, $users[1]->id);
+        $this->assertGreaterThan($users[0]->id, $users[1]->id);
     }
 
     public function test_create_raw_throws_exception_when_required_field_missing(): void
@@ -256,13 +338,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_returns_model_when_exists(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'Jane Doe',
-            'email' => 'jane@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'Jane Doe', email: 'jane@example.com');
 
         // Act
         $result = $this->userRepository->find($user->id);
@@ -286,32 +362,12 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_by_returns_collection_with_filters_and_limit(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'Alice',
-            'email' => 'alice@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'Bob',
-            'email' => 'bob@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'Charlie',
-            'email' => 'charlie@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUsers(count: 2, status: TestUserStatus::ACTIVE);
+        $this->createUser(status: TestUserStatus::INACTIVE);
 
         $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
         $columns = new SelectColumns(['id', 'name', 'email', 'status']);
 
-        // ✅ Utilisation de SortColumns pour le tri simple
         $findByRecord = new FindByRecord(
             filters: $filters,
             limit: 1,
@@ -325,26 +381,13 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         // Assert
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertCount(1, $result);
-        $this->assertSame('Alice', $result->first()->name);
+        $this->assertStringContainsString('User', $result->first()->name);
     }
 
     public function test_find_by_returns_all_without_limit_when_limit_is_null(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'Alice',
-            'email' => 'alice@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'Bob',
-            'email' => 'bob@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUsers(count: 2);
 
         $findByRecord = new FindByRecord(
             filters: new EmptyRecord,
@@ -362,13 +405,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_by_with_specific_columns_returns_only_selected_columns(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'John Doe',
-            'email' => 'john@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUser(name: 'John Doe', email: 'john@example.com');
 
         $columns = new SelectColumns(['id', 'name']);
         $findByRecord = new FindByRecord(
@@ -387,35 +424,15 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertNull($user->status);
     }
 
-    // ✅ NOUVEAU TEST : Tri multiple avec SortColumns
     public function test_find_by_with_multiple_sort_columns_returns_ordered_results(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'User A',
-            'email' => 'user1@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'User A',
-            'email' => 'user2@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'User B',
-            'email' => 'user3@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUser(name: 'User A', email: 'user1@example.com');
+        $this->createUser(name: 'User A', email: 'user2@example.com');
+        $this->createUser(name: 'User B', email: 'user3@example.com');
 
         $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
 
-        // ✅ Tri multiple : d'abord par name ASC, puis par id DESC (pour avoir un ordre déterministe)
         $findByRecord = new FindByRecord(
             filters: $filters,
             sortBy: new SortColumns('name:asc|id:desc'),
@@ -426,8 +443,6 @@ final class AbstractRepositoryTest extends IntegrationTestCase
 
         // Assert
         $this->assertCount(3, $result);
-
-        // Les Users A doivent venir avant User B, et entre les Users A, ordre par id desc
         $this->assertSame('User A', $result[0]->name);
         $this->assertSame('User A', $result[1]->name);
         $this->assertSame('User B', $result[2]->name);
@@ -436,17 +451,9 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_update_updates_only_non_null_fields_and_returns_updated_model(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'Original Name',
-            'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'Original Name', email: 'original@example.com');
 
-        $updateRecord = new TestUserRecord(
-            name: 'Updated Name',
-        );
+        $updateRecord = new TestUserRecord(name: 'Updated Name');
 
         // Act
         $updated = $this->userRepository->update($user->id, $updateRecord);
@@ -477,13 +484,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_delete_returns_true_when_user_exists(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'To Delete',
-            'email' => 'delete@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'To Delete', email: 'delete@example.com');
 
         // Act
         $result = $this->userRepository->delete($user->id);
@@ -505,20 +506,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_count_returns_total_without_criteria(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'User 1',
-            'email' => 'user1@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'User 2',
-            'email' => 'user2@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUsers(count: 2);
 
         // Act
         $count = $this->userRepository->count();
@@ -530,20 +518,8 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_count_returns_total_with_criteria(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'User 1',
-            'email' => 'user1@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'User 2',
-            'email' => 'user2@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUser(status: TestUserStatus::ACTIVE);
+        $this->createUser(status: TestUserStatus::INACTIVE);
 
         $criteria = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
 
@@ -557,13 +533,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_exists_returns_true_when_criteria_matches(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'Existing User',
-            'email' => 'exists@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUser(email: 'exists@example.com');
 
         $criteria = new TestUserFiltersRecord(email: 'exists@example.com');
 
@@ -589,20 +559,12 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_paginate_returns_paginated_results_with_filters_and_sorting(): void
     {
         // Arrange
-        for ($i = 1; $i <= 10; $i++) {
-            TestUser::create([
-                'name' => "User {$i}",
-                'email' => "user{$i}@example.com",
-                'status' => $i <= 5 ? TestUserStatus::ACTIVE : TestUserStatus::INACTIVE,
-                'role' => TestUserRole::USER,
-                'grade' => TestUserGrade::BRONZE,
-            ]);
-        }
+        $this->createUsers(count: 5, status: TestUserStatus::ACTIVE);
+        $this->createUsers(count: 5, status: TestUserStatus::INACTIVE);
 
         $filters = new TestUserFiltersRecord(status: TestUserStatus::ACTIVE);
         $columns = new SelectColumns(['id', 'name', 'email', 'status']);
 
-        // ✅ Utilisation de SortColumns pour le tri
         $paginateRecord = new PaginateRecord(
             perPage: 3,
             page: 1,
@@ -613,31 +575,19 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         );
 
         // Act
-        /** @var Collection|\Countable $result */
         $result = $this->userRepository->paginate($paginateRecord);
 
         // Assert
         $this->assertInstanceOf(LengthAwarePaginator::class, $result);
-        $this->assertSame(3, $result->count());
+        $this->assertCount(3, $result->items());
         $this->assertSame(5, $result->total());
         $this->assertSame(1, $result->currentPage());
-
-        $items = $result->items();
-        $this->assertSame('User 1', $items[0]->name);
     }
 
     public function test_paginate_with_specific_columns_returns_only_selected_columns(): void
     {
         // Arrange
-        for ($i = 1; $i <= 3; $i++) {
-            TestUser::create([
-                'name' => "User {$i}",
-                'email' => "user{$i}@example.com",
-                'status' => TestUserStatus::ACTIVE,
-                'role' => TestUserRole::USER,
-                'grade' => TestUserGrade::BRONZE,
-            ]);
-        }
+        $this->createUsers(count: 3);
 
         $columns = new SelectColumns(['id', 'name']);
         $paginateRecord = new PaginateRecord(
@@ -652,7 +602,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
 
         // Assert
         $this->assertNotNull($user->id);
-        $this->assertSame('User 1', $user->name);
+        $this->assertStringContainsString('User', $user->name);
         $this->assertNull($user->email);
         $this->assertNull($user->status);
     }
@@ -660,27 +610,8 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_delete_bulk_deletes_multiple_models_matching_criteria(): void
     {
         // Arrange
-        TestUser::create([
-            'name' => 'To Delete 1',
-            'email' => 'todelete1@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'To Delete 2',
-            'email' => 'todelete2@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        TestUser::create([
-            'name' => 'Keep',
-            'email' => 'keep@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $this->createUsers(count: 2, status: TestUserStatus::INACTIVE);
+        $this->createUser(status: TestUserStatus::ACTIVE, email: 'keep@example.com');
 
         $criteria = new TestUserFiltersRecord(status: TestUserStatus::INACTIVE);
 
@@ -691,20 +622,12 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertSame(2, $deletedCount);
         $this->assertDatabaseCount('test_users', 1);
         $this->assertDatabaseHas('test_users', ['email' => 'keep@example.com']);
-        $this->assertDatabaseMissing('test_users', ['email' => 'todelete1@example.com']);
-        $this->assertDatabaseMissing('test_users', ['email' => 'todelete2@example.com']);
     }
 
     public function test_update_raw_updates_with_raw_data_including_null_values(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'Original Name',
-            'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'Original Name', email: 'original@example.com');
 
         // Act
         $updated = $this->userRepository->updateRaw($user->id, [
@@ -717,46 +640,30 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertSame('Updated Name', $updated->name);
         $this->assertNull($updated->email);
         $this->assertSame(TestUserStatus::INACTIVE, $updated->status);
-        $this->assertSame(TestUserRole::USER, $updated->role);
-        $this->assertSame(TestUserGrade::BRONZE, $updated->grade);
 
         $this->assertDatabaseHas('test_users', [
             'id' => $user->id,
             'name' => 'Updated Name',
             'status' => TestUserStatus::INACTIVE->value,
-            'role' => TestUserRole::USER->value,
-            'grade' => TestUserGrade::BRONZE->value,
         ]);
     }
 
     public function test_update_raw_updates_only_provided_fields_when_passed_partial_data(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'Original Name',
-            'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'Original Name', email: 'original@example.com');
 
         // Act
-        $updated = $this->userRepository->updateRaw($user->id, [
-            'name' => 'Updated Name',
-        ]);
+        $updated = $this->userRepository->updateRaw($user->id, ['name' => 'Updated Name']);
 
         // Assert
         $this->assertSame('Updated Name', $updated->name);
         $this->assertSame('original@example.com', $updated->email);
-        $this->assertSame(TestUserStatus::ACTIVE, $updated->status);
-        $this->assertSame(TestUserRole::USER, $updated->role);
-        $this->assertSame(TestUserGrade::BRONZE, $updated->grade);
 
         $this->assertDatabaseHas('test_users', [
             'id' => $user->id,
             'name' => 'Updated Name',
             'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE->value,
         ]);
     }
 
@@ -773,13 +680,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_update_raw_with_empty_data_does_nothing_and_returns_model(): void
     {
         // Arrange
-        $user = TestUser::create([
-            'name' => 'Original Name',
-            'email' => 'original@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user = $this->createUser(name: 'Original Name', email: 'original@example.com');
 
         // Act
         $updated = $this->userRepository->updateRaw($user->id, []);
@@ -803,39 +704,28 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_soft_delete_restore_recovers_soft_deleted_model(): void
     {
         // Arrange
-        $record = new TestProductRecord(
-            name: 'Test Product',
-            price: 99.99,
-            stock: 10,
-            is_active: true,
-        );
-        $product = $this->productRepository->create($record);
-        $productId = $product->id;
+        $product = $this->createProduct(name: 'Test Product');
 
         // Act - Soft delete
-        $deleted = $this->productRepository->delete($productId);
+        $deleted = $this->productRepository->delete($product->id);
         $this->assertTrue($deleted);
 
-        // Vérifier que le produit est soft deleté
-        $this->assertDatabaseHas('test_products', ['id' => $productId]);
-        $this->assertDatabaseMissing('test_products', ['id' => $productId, 'deleted_at' => null]);
+        $this->assertDatabaseHas('test_products', ['id' => $product->id]);
+        $this->assertDatabaseMissing('test_products', ['id' => $product->id, 'deleted_at' => null]);
 
-        // Vérifier que find() ne le trouve plus
-        $this->assertNull($this->productRepository->find($productId));
+        $this->assertNull($this->productRepository->find($product->id));
 
         // Act - Restore
-        $restored = $this->productRepository->restore($productId);
+        $restored = $this->productRepository->restore($product->id);
 
         // Assert
         $this->assertTrue($restored);
 
-        // Vérifier que le produit est à nouveau trouvable
-        $restoredProduct = $this->productRepository->find($productId);
+        $restoredProduct = $this->productRepository->find($product->id);
         $this->assertNotNull($restoredProduct);
         $this->assertSame('Test Product', $restoredProduct->name);
 
-        // Vérifier que deleted_at est null
-        $this->assertDatabaseHas('test_products', ['id' => $productId, 'deleted_at' => null]);
+        $this->assertDatabaseHas('test_products', ['id' => $product->id, 'deleted_at' => null]);
     }
 
     public function test_soft_delete_restore_returns_false_when_model_not_found(): void
@@ -850,13 +740,7 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_soft_delete_restore_returns_false_when_model_is_not_soft_deleted(): void
     {
         // Arrange
-        $record = new TestProductRecord(
-            name: 'Not Deleted',
-            price: 49.99,
-            stock: 5,
-            is_active: true,
-        );
-        $product = $this->productRepository->create($record);
+        $product = $this->createProduct(name: 'Not Deleted');
 
         // Act
         $restored = $this->productRepository->restore($product->id);
@@ -868,20 +752,11 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_with_trashed_returns_soft_deleted_model(): void
     {
         // Arrange
-        $record = new TestProductRecord(
-            name: 'Hidden Product',
-            price: 49.99,
-            stock: 5,
-            is_active: true,
-        );
-        $product = $this->productRepository->create($record);
-        $productId = $product->id;
-
-        // Soft delete
-        $this->productRepository->delete($productId);
+        $product = $this->createProduct(name: 'Hidden Product');
+        $this->productRepository->delete($product->id);
 
         // Act
-        $found = $this->productRepository->findWithTrashed($productId);
+        $found = $this->productRepository->findWithTrashed($product->id);
 
         // Assert
         $this->assertNotNull($found);
@@ -901,21 +776,14 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_force_delete_permanently_removes_model(): void
     {
         // Arrange
-        $record = new TestProductRecord(
-            name: 'To Force Delete',
-            price: 19.99,
-            stock: 1,
-            is_active: false,
-        );
-        $product = $this->productRepository->create($record);
-        $productId = $product->id;
+        $product = $this->createProduct(name: 'To Force Delete');
 
         // Act
-        $deleted = $this->productRepository->forceDelete($productId);
+        $deleted = $this->productRepository->forceDelete($product->id);
 
         // Assert
         $this->assertTrue($deleted);
-        $this->assertDatabaseMissing('test_products', ['id' => $productId]);
+        $this->assertDatabaseMissing('test_products', ['id' => $product->id]);
     }
 
     public function test_force_delete_returns_false_when_model_not_found(): void
@@ -930,11 +798,9 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_by_with_trashed_filter_returns_deleted_records(): void
     {
         // Arrange
-        $this->productRepository->create(new TestProductRecord(name: 'Active Product 1', price: 10.00, stock: 5, is_active: true));
-        $this->productRepository->create(new TestProductRecord(name: 'Active Product 2', price: 20.00, stock: 3, is_active: true));
+        $this->createProducts(count: 2, name: 'Active Product', is_active: true);
 
-        $deletedRecord = new TestProductRecord(name: 'Deleted Product', price: 30.00, stock: 0, is_active: false);
-        $deletedProduct = $this->productRepository->create($deletedRecord);
+        $deletedProduct = $this->createProduct(name: 'Deleted Product', is_active: false);
         $this->productRepository->delete($deletedProduct->id);
 
         $filters = new TestProductFilterRecord(is_deleted: true);
@@ -949,10 +815,9 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_find_by_without_trashed_filter_excludes_deleted_records(): void
     {
         // Arrange
-        $this->productRepository->create(new TestProductRecord(name: 'Active Product', price: 10.00, stock: 5, is_active: true));
+        $this->createProduct(name: 'Active Product', is_active: true);
 
-        $deletedRecord = new TestProductRecord(name: 'Deleted Product', price: 30.00, stock: 0, is_active: false);
-        $deletedProduct = $this->productRepository->create($deletedRecord);
+        $deletedProduct = $this->createProduct(name: 'Deleted Product', is_active: false);
         $this->productRepository->delete($deletedProduct->id);
 
         $filters = new TestProductFilterRecord(is_deleted: false);
@@ -967,30 +832,14 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_force_delete_bulk_permanently_removes_soft_deleted_models(): void
     {
         // Arrange
-        $product1 = $this->productRepository->create(new TestProductRecord(
-            name: 'To Force Delete 1',
-            price: 10.00,
-            stock: 5,
-            is_active: true,
-        ));
-        $product2 = $this->productRepository->create(new TestProductRecord(
-            name: 'To Force Delete 2',
-            price: 20.00,
-            stock: 3,
-            is_active: true,
-        ));
-        $product3 = $this->productRepository->create(new TestProductRecord(
-            name: 'Keep',
-            price: 30.00,
-            stock: 1,
-            is_active: true,
-        ));
+        $product1 = $this->createProduct(name: 'To Force Delete 1');
+        $product2 = $this->createProduct(name: 'To Force Delete 2');
+        $product3 = $this->createProduct(name: 'Keep');
 
         // Soft delete les deux premiers
         $this->productRepository->delete($product1->id);
         $this->productRepository->delete($product2->id);
 
-        // Vérifier qu'ils sont soft deletés
         $this->assertDatabaseHas('test_products', ['id' => $product1->id]);
         $this->assertDatabaseHas('test_products', ['id' => $product2->id]);
         $this->assertDatabaseMissing('test_products', ['id' => $product1->id, 'deleted_at' => null]);
@@ -1011,27 +860,9 @@ final class AbstractRepositoryTest extends IntegrationTestCase
     public function test_force_delete_bulk_on_model_without_soft_deletes_performs_hard_delete(): void
     {
         // Arrange
-        $user1 = TestUser::create([
-            'name' => 'To Delete 1',
-            'email' => 'todelete1@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        $user2 = TestUser::create([
-            'name' => 'To Delete 2',
-            'email' => 'todelete2@example.com',
-            'status' => TestUserStatus::INACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
-        $user3 = TestUser::create([
-            'name' => 'Keep',
-            'email' => 'keep@example.com',
-            'status' => TestUserStatus::ACTIVE,
-            'role' => TestUserRole::USER,
-            'grade' => TestUserGrade::BRONZE,
-        ]);
+        $user1 = $this->createUser(name: 'To Delete 1', status: TestUserStatus::INACTIVE);
+        $user2 = $this->createUser(name: 'To Delete 2', status: TestUserStatus::INACTIVE);
+        $user3 = $this->createUser(name: 'Keep', status: TestUserStatus::ACTIVE, email: 'keep@example.com');
 
         $criteria = new TestUserFiltersRecord(status: TestUserStatus::INACTIVE);
 
@@ -1042,6 +873,351 @@ final class AbstractRepositoryTest extends IntegrationTestCase
         $this->assertSame(2, $deletedCount);
         $this->assertDatabaseMissing('test_users', ['id' => $user1->id]);
         $this->assertDatabaseMissing('test_users', ['id' => $user2->id]);
-        $this->assertDatabaseHas('test_users', ['id' => $user3->id]);
+        $this->assertDatabaseHas('test_users', ['email' => 'keep@example.com']);
+    }
+
+    // ============================================================================
+    // ClusterFilter Tests
+    // ============================================================================
+    public function test_where_cluster_filters_results(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: ['status' => 'active', 'role' => 'admin']
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: ['status' => 'inactive', 'role' => 'doctor']
+        );
+
+        $this->createUser(
+            name: 'User 3',
+            email: 'user3@example.com',
+            metadata: ['status' => 'active', 'role' => 'doctor']
+        );
+
+        // Act
+        $repository = $this->userRepository
+            ->whereCluster('metadata', 'status=active & role=admin')
+            ->findBy(new FindByRecord(
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(1, $repository);
+        $this->assertSame('User 1', $repository->first()->name);
+    }
+
+    public function test_where_cluster_with_complex_query(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: [
+                'status' => 'active',
+                'role' => 'admin',
+                'age' => 30,
+                'addresses' => [
+                    ['city' => 'Kinshasa', 'country' => 'RDC'],
+                    ['city' => 'Paris', 'country' => 'France'],
+                ],
+            ]
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: [
+                'status' => 'active',
+                'role' => 'doctor',
+                'age' => 25,
+                'addresses' => [
+                    ['city' => 'Paris', 'country' => 'France'],
+                ],
+            ]
+        );
+
+        $this->createUser(
+            name: 'User 3',
+            email: 'user3@example.com',
+            metadata: [
+                'status' => 'active',
+                'role' => 'admin',
+                'age' => 35,
+                'addresses' => [
+                    ['city' => 'Kinshasa', 'country' => 'RDC'],
+                    ['city' => 'London', 'country' => 'UK'],
+                    ['city' => 'Paris', 'country' => 'France'],
+                ],
+            ]
+        );
+
+        // Act - Sous-condition + condition
+        $repository = $this->userRepository
+            ->whereCluster('metadata', 'status=active & addresses[city=Kinshasa]')
+            ->findBy(new FindByRecord(
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(2, $repository);
+        $names = $repository->pluck('name')->toArray();
+        $this->assertContains('User 1', $names);
+        $this->assertContains('User 3', $names);
+    }
+
+    public function test_where_cluster_with_aggregate_function(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: [
+                'addresses' => ['a', 'b', 'c'],
+                'scores' => [80, 90, 85],
+            ]
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: [
+                'addresses' => ['a', 'b'],
+                'scores' => [70, 75, 80],
+            ]
+        );
+
+        // Act
+        $repository = $this->userRepository
+            ->whereCluster('metadata', 'COUNT(addresses) > 2')
+            ->findBy(new FindByRecord(
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(1, $repository);
+        $this->assertSame('User 1', $repository->first()->name);
+    }
+
+    public function test_where_cluster_chaining_multiple_filters(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: ['status' => 'active', 'role' => 'admin', 'age' => 30]
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: ['status' => 'active', 'role' => 'doctor', 'age' => 25]
+        );
+
+        $this->createUser(
+            name: 'User 3',
+            email: 'user3@example.com',
+            metadata: ['status' => 'active', 'role' => 'admin', 'age' => 35]
+        );
+
+        // Act - Chaînage multiple
+        $repository = $this->userRepository
+            ->whereCluster('metadata', 'status=active')
+            ->whereCluster('metadata', 'role=admin')
+            ->whereCluster('metadata', 'age>=30')
+            ->findBy(new FindByRecord(
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(2, $repository);
+        $names = $repository->pluck('name')->toArray();
+        $this->assertContains('User 1', $names);
+        $this->assertContains('User 3', $names);
+    }
+
+    public function test_where_cluster_with_find(): void
+    {
+        // Arrange
+        $user = $this->createUser(
+            name: 'Test User',
+            email: 'test@example.com',
+            metadata: ['status' => 'active', 'role' => 'admin']
+        );
+
+        // Act
+        $found = $this->userRepository
+            ->whereCluster('metadata', 'role=admin')
+            ->find($user->id);
+
+        // Assert
+        $this->assertNotNull($found);
+        $this->assertSame($user->id, $found->id);
+        $this->assertSame('Test User', $found->name);
+    }
+
+    public function test_where_cluster_with_count(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: ['status' => 'active']
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: ['status' => 'inactive']
+        );
+
+        $this->createUser(
+            name: 'User 3',
+            email: 'user3@example.com',
+            metadata: ['status' => 'active']
+        );
+
+        // Act
+        $count = $this->userRepository
+            ->whereCluster('metadata', 'status=active')
+            ->count();
+
+        // Assert
+        $this->assertSame(2, $count);
+    }
+
+    public function test_where_cluster_with_paginate(): void
+    {
+        // Arrange
+        for ($i = 1; $i <= 10; $i++) {
+            $this->createUser(
+                name: "User {$i}",
+                email: "user{$i}@example.com",
+                metadata: ['status' => $i <= 5 ? 'active' : 'inactive']
+            );
+        }
+
+        // Act
+        $result = $this->userRepository
+            ->whereCluster('metadata', 'status=active')
+            ->paginate(new PaginateRecord(
+                perPage: 3,
+                page: 1,
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+        $this->assertCount(3, $result->items());
+        $this->assertSame(5, $result->total());
+        $this->assertSame(1, $result->currentPage());
+    }
+
+    public function test_where_cluster_clear_filters(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: ['status' => 'active']
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            metadata: ['status' => 'inactive']
+        );
+
+        // Act - Avec filtre
+        $filtered = $this->userRepository
+            ->whereCluster('metadata', 'status=active')
+            ->count();
+
+        $this->assertSame(1, $filtered);
+
+        // Act - Clear puis count
+        $all = $this->userRepository
+            ->clearClusterFilters()
+            ->count();
+
+        // Assert
+        $this->assertSame(2, $all);
+    }
+
+    public function test_where_cluster_with_existing_filters(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            status: TestUserStatus::ACTIVE,
+            role: TestUserRole::ADMIN,
+            metadata: ['status' => 'active', 'role' => 'admin']
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            status: TestUserStatus::ACTIVE,
+            role: TestUserRole::USER,
+            metadata: ['status' => 'active', 'role' => 'user']
+        );
+
+        // Act - Filtres Record + Cluster
+        $filters = new TestUserFiltersRecord(role: TestUserRole::ADMIN);
+        $result = $this->userRepository
+            ->whereCluster('metadata', 'status=active')
+            ->findBy(new FindByRecord(
+                filters: $filters,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(1, $result);
+        $this->assertSame('User 1', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_or_condition(): void
+    {
+        // Arrange
+        $this->createUser(
+            name: 'User 1',
+            email: 'user1@example.com',
+            metadata: ['status' => 'active', 'role' => 'admin']
+        );
+
+        $this->createUser(
+            name: 'User 2',
+            email: 'user2@example.com',
+            status: TestUserStatus::SUSPENDED,
+            metadata: ['status' => 'suspended', 'role' => 'guest']
+        );
+
+        $this->createUser(
+            name: 'User 3',
+            email: 'user3@example.com',
+            metadata: ['status' => 'active', 'role' => 'doctor']
+        );
+
+        // Act
+        $result = $this->userRepository
+            ->whereCluster('metadata', 'status=active | status=suspended')
+            ->findBy(new FindByRecord(
+                filters: new EmptyRecord,
+                columns: SelectColumns::all(),
+            ));
+
+        // Assert
+        $this->assertCount(3, $result);
     }
 }

@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
 
 /**
  * @template TModel of Model
-* @template TRecord of AbstractRecord
+ * @template TRecord of AbstractRecord
  *
  * @implements AbstractRepositoryInterface<TModel, TRecord>
  */
@@ -30,6 +30,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
 
     protected string $recordClass;
 
+    /** @var array<array{column: string, query: string}> */
+    private array $clusterFilters = [];
+
     /**
      * @param  class-string<TModel>  $modelClass
      * @param  class-string<TRecord>  $recordClass
@@ -39,6 +42,40 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
         $this->modelClass = $modelClass;
         $this->recordClass = $recordClass;
         $this->model = new $modelClass;
+    }
+
+    /**
+     * Apply a cluster filter to the repository query.
+     *
+     * @param  string  $column  The JSON column containing cluster data
+     * @param  string  $query  The cluster query expression
+     * @return $this
+     *
+     * @example
+     * $repository->whereCluster('metadata', 'status=active & age>25')->findBy(...);
+     * $repository->whereCluster('metadata', 'COUNT(addresses) > 2')->count();
+     * $repository->whereCluster('metadata', 'addresses[city=Kinshasa]')->paginate(10);
+     */
+    public function whereCluster(string $column, string $query): self
+    {
+        $this->clusterFilters[] = [
+            'column' => $column,
+            'query' => $query,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Clear all applied cluster filters.
+     *
+     * @return $this
+     */
+    public function clearClusterFilters(): self
+    {
+        $this->clusterFilters = [];
+
+        return $this;
     }
 
     /**
@@ -87,8 +124,9 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      */
     public function find(int|string $id): ?Model
     {
+        $query = $this->buildFilteredQuery();
         /** @var TModel|null $model */
-        $model = $this->model->newQuery()->find($id);
+        $model = $query->find($id);
 
         return $model;
     }
@@ -100,7 +138,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      */
     public function findWithTrashed(int|string $id): ?Model
     {
-        $query = $this->model->newQuery();
+        $query = $this->buildFilteredQuery();
 
         if ($this->usesSoftDeletes()) {
             $query = $query->withTrashed();
@@ -269,7 +307,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     public function count(?AbstractRecord $criteria = null): int
     {
         if ($criteria === null) {
-            return $this->model->newQuery()->count();
+            return $this->buildFilteredQuery()->count();
         }
 
         return $this->buildQuery($criteria)->count();
@@ -320,19 +358,35 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
     }
 
     /**
-     * Build the query with filters from a Record.
+     * Build the query with filters from a Record AND cluster filters.
      *
      * @return Builder<TModel>
      */
     protected function buildQuery(AbstractRecord $filters): Builder
     {
-        $query = $this->model->newQuery();
+        $query = $this->buildFilteredQuery();
 
         if ($filters instanceof EmptyRecord) {
             return $query;
         }
 
         $this->applyFilters($query, $filters);
+
+        return $query;
+    }
+
+    /**
+     * Build a query with all applied cluster filters.
+     *
+     * @return Builder<TModel>
+     */
+    protected function buildFilteredQuery(): Builder
+    {
+        $query = $this->model->newQuery();
+
+        foreach ($this->clusterFilters as $filter) {
+            $query->whereCluster($filter['column'], $filter['query']);
+        }
 
         return $query;
     }
