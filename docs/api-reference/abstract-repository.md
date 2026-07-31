@@ -2,20 +2,30 @@
 
 ## Description
 
-Classe abstraite qui implémente les opérations CRUD de base pour l'accès aux données entre des Records (value objects) et des modèles Eloquent. Supporte nativement le Soft Delete avec des méthodes dédiées.
+Classe abstraite fournissant les opérations CRUD de base pour les repositories Laravel avec une interface type-safe basée sur des enregistrements immuables (`AbstractRecord`). Elle sert de fondation pour toutes les interactions avec la base de données.
 
-## Hiérarchie
+## Hiérarchie / Implémentations
 
 ```
 AbstractRepositoryInterface<TModel, TRecord>
-    └── AbstractRepository<TModel, TRecord>
+    └── AbstractRepository<TModel, TRecord> (abstract)
+            └── [Vos repositories concrets]
 ```
 
-**Interfaces implémentées :** `AbstractRepositoryInterface`
+**Interfaces implémentées :**
+- `AbstractRepositoryInterface<TModel, TRecord>`
+
+**Classes parentes :** Aucune
 
 ## Rôle principal
 
-Assure la conversion automatique entre les `AbstractRecord` (couche domaine) et les modèles Eloquent (couche infrastructure). Fournit une base standardisée pour toutes les opérations de persistance avec gestion des types génériques et support intégré du Soft Delete.
+Cette classe abstraite agit comme une couche d'abstraction entre les modèles Eloquent et la logique métier. Elle permet de :
+
+1. **Centraliser** les opérations CRUD (Create, Read, Update, Delete)
+2. **Typer** les opérations avec des enregistrements immuables (`AbstractRecord`)
+3. **Standardiser** les interactions avec la base de données
+4. **Simplifier** la gestion des soft deletes
+5. **Filtrer** les requêtes avec des filtres cluster sur colonnes JSON
 
 ## API / Méthodes publiques
 
@@ -23,181 +33,231 @@ Assure la conversion automatique entre les `AbstractRecord` (couche domaine) et 
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$modelClass` | `class-string<TModel>` | Nom complet de la classe du modèle Eloquent |
-| `$recordClass` | `class-string<TRecord>` | Nom complet de la classe du Record associé |
+| `$modelClass` | `class-string<TModel>` | Nom de la classe du modèle Eloquent |
+| `$recordClass` | `class-string<TRecord>` | Nom de la classe Record utilisée pour le transfert de données |
 
 **Retourne :** `void`
 
+**Exceptions :** Aucune
+
 **Exemple :**
 ```php
-$repository = new UserRepository(
-    User::class,
-    UserRecord::class
-);
+class UserRepository extends AbstractRepository
+{
+    public function __construct()
+    {
+        parent::__construct(
+            User::class,
+            UserRecord::class
+        );
+    }
+}
 ```
+
+---
+
+### `whereCluster(string $column, string $query): self`
+
+Applique un filtre cluster sur une colonne JSON. Permet des requêtes complexes sur les données JSON.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$column` | `string` | Nom de la colonne JSON |
+| `$query` | `string` | Expression de requête cluster |
+
+**Retourne :** `$this` (fluent interface)
+
+**Exceptions :** Aucune (les erreurs de syntaxe sont propagées par le moteur de cluster)
+
+**Exemple :**
+```php
+$repository = new UserRepository();
+$users = $repository
+    ->whereCluster('metadata', 'status=active & age>25')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+```
+
+---
+
+### `clearClusterFilters(): self`
+
+Supprime tous les filtres cluster précédemment appliqués.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `$this` (fluent interface)
+
+**Exceptions :** Aucune
+
+**Exemple :**
+```php
+$repository->whereCluster('metadata', 'status=active');
+$countActive = $repository->count(); // 5
+
+$repository->clearClusterFilters();
+$allCount = $repository->count(); // 10
+```
+
+---
 
 ### `info(): RepositoryInfoRecord`
 
-Retourne un enregistrement d'informations sur le repository.
+Retourne des informations sur le repository (classes du modèle et du record).
 
-**Retourne :** `RepositoryInfoRecord<TModel, TRecord>` - Enregistrement contenant les classes du modèle et du record
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `RepositoryInfoRecord<TModel, TRecord>` - Enregistrement contenant les noms des classes
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
 $info = $repository->info();
-echo $info->modelClass;    // User::class
-echo $info->recordClass;   // UserRecord::class
+echo $info->modelClass;  // 'App\Models\User'
+echo $info->recordClass; // 'App\Records\UserRecord'
 ```
+
+---
 
 ### `create(AbstractRecord $record): Model`
 
-Crée un nouveau modèle à partir d'un record.
+Crée un nouveau modèle à partir d'un enregistrement.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `TRecord` | Record contenant les données à persister |
+| `$record` | `TRecord` | Enregistrement contenant les données à créer |
 
-**Retourne :** `TModel` - Le modèle créé avec son ID généré
+**Retourne :** `TModel` - Le modèle créé
 
-**Exceptions :** Aucune exception spécifique (délègue à Eloquent)
+**Exceptions :** `Illuminate\Database\QueryException` - En cas d'erreur de base de données
 
 **Exemple :**
 ```php
-$record = new UserRecord(name: 'John Doe', email: 'john@example.com');
+$record = new UserRecord(
+    name: 'John Doe',
+    email: 'john@example.com',
+    status: UserStatus::ACTIVE
+);
+
 $user = $repository->create($record);
 echo $user->id; // 1
 ```
 
+---
+
 ### `createRaw(array $data): Model`
 
-Crée un nouveau modèle directement à partir d'un tableau de données brutes, sans passer par l'hydratation d'un Record.
+Crée un nouveau modèle à partir de données brutes (tableau).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Tableau associatif des données à persister |
+| `$data` | `array<string, mixed>` | Données brutes pour la création |
 
-**Retourne :** `TModel` - Le modèle créé avec son ID généré
+**Retourne :** `TModel` - Le modèle créé
 
-**Exceptions :** `QueryException` - Si les données ne respectent pas les contraintes de la base
+**Exceptions :** `Illuminate\Database\QueryException` - En cas d'erreur de base de données
 
 **Exemple :**
 ```php
-// Création avec données brutes
-$data = [
-    'name' => 'John Doe',
-    'email' => 'john@example.com',
+$user = $repository->createRaw([
+    'name' => 'Jane Doe',
+    'email' => 'jane@example.com',
     'status' => 'active',
-];
-$user = $repository->createRaw($data);
-
-// Création avec valeurs null explicites
-$data = [
-    'name' => 'User Without Email',
-    'email' => null,
-    'status' => 'active',
-];
-$user = $repository->createRaw($data);
+]);
 ```
 
-### `find(int $id): ?Model`
+---
 
-Recherche un modèle par son ID (exclut les soft deleted par défaut).
+### `find(int|string $id): ?Model`
+
+Trouve un modèle par sa clé primaire.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant unique du modèle |
+| `$id` | `int|string` | Identifiant du modèle |
 
-**Retourne :** `TModel|null` - Le modèle trouvé ou null
+**Retourne :** `TModel|null` - Le modèle trouvé ou `null`
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-$user = $repository->find(1);
+$user = $repository->find(42);
 if ($user !== null) {
     echo $user->name;
 }
 ```
 
-### `findWithTrashed(int $id): ?Model`
+---
 
-Recherche un modèle par son ID en incluant les soft deleted.
+### `findWithTrashed(int|string $id): ?Model`
+
+Trouve un modèle par sa clé primaire, y compris les modèles soft-deleted.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant unique du modèle |
+| `$id` | `int|string` | Identifiant du modèle |
 
-**Retourne :** `TModel|null` - Le modèle trouvé (même s'il est soft deleted) ou null
+**Retourne :** `TModel|null` - Le modèle trouvé ou `null`
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-// Récupérer un utilisateur même s'il est supprimé
-$deletedUser = $repository->findWithTrashed(1);
-if ($deletedUser !== null && $deletedUser->trashed()) {
-    echo "User is deleted since: {$deletedUser->deleted_at}";
+// Récupère même les utilisateurs supprimés
+$user = $repository->findWithTrashed(42);
+if ($user !== null && $user->trashed()) {
+    echo "L'utilisateur est supprimé";
 }
 ```
 
+---
+
 ### `findBy(FindByRecord $record): Collection`
 
-Recherche des modèles selon des critères complexes.
+Trouve des modèles correspondant à des critères de recherche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `FindByRecord` | Enregistrement contenant filtres, tri, limite, colonnes |
+| `$record` | `FindByRecord` | Critères de recherche, tris et limites |
 
-**Retourne :** `Collection<int, TModel>` - Collection de modèles
+**Retourne :** `Collection<int, TModel>` - Collection des modèles trouvés
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
 $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
+$sortBy = new SortColumns('created_at:desc');
 $columns = new SelectColumns(['id', 'name', 'email']);
 
-// Tri simple
-$findByRecord = new FindByRecord(
+$record = new FindByRecord(
     filters: $filters,
+    sortBy: $sortBy,
     limit: 10,
-    sortBy: new SortColumns('name:asc'),
     columns: $columns
 );
 
-// Tri multi-colonnes
-$findByRecord = new FindByRecord(
-    filters: $filters,
-    limit: 10,
-    sortBy: new SortColumns('name:asc|created_at:desc|id:asc'),
-    columns: $columns
-);
-
-$users = $repository->findBy($findByRecord);
+$users = $repository->findBy($record);
+foreach ($users as $user) {
+    echo $user->name;
+}
 ```
 
-### `update(int $id, AbstractRecord $record): Model`
+---
 
-Met à jour un modèle existant.
+### `update(int|string $id, AbstractRecord $record): Model`
+
+Met à jour un modèle avec les données d'un enregistrement.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant du modèle à mettre à jour |
-| `$record` | `TRecord` | Record contenant les nouvelles données |
-
-**Retourne :** `TModel` - Le modèle mis à jour et rafraîchi
-
-**Exceptions :** `ModelNotFoundException` - Si le modèle n'existe pas
-
-**Exemple :**
-```php
-$updateRecord = new UserRecord(name: 'Jane Doe');
-$user = $repository->update(1, $updateRecord);
-echo $user->name; // 'Jane Doe'
-```
-
-### `updateRaw(int $id, array $data): Model`
-
-Met à jour un modèle avec des données brutes. Utile pour définir des champs à NULL ou utiliser des valeurs spécifiques à la base de données.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$id` | `int` | Identifiant du modèle à mettre à jour |
-| `$data` | `array<string, mixed>` | Tableau brut de données |
+| `$id` | `int|string` | Identifiant du modèle |
+| `$record` | `TRecord` | Enregistrement contenant les données de mise à jour |
 
 **Retourne :** `TModel` - Le modèle mis à jour
 
@@ -205,178 +265,230 @@ Met à jour un modèle avec des données brutes. Utile pour définir des champs 
 
 **Exemple :**
 ```php
-// Mettre à jour le nom et définir l'email à NULL
-$updated = $repository->updateRaw(1, [
-    'name' => 'New Name',
-    'email' => null,
-]);
+$record = new UserRecord(name: 'Updated Name');
+$user = $repository->update(1, $record);
+echo $user->name; // 'Updated Name'
 ```
 
-### `delete(int $id): bool`
+---
 
-Supprime un modèle par son ID (soft delete si le modèle utilise le trait `SoftDeletes`, sinon hard delete).
+### `updateRaw(int|string $id, array $data): Model`
+
+Met à jour un modèle avec des données brutes. Utile pour définir des valeurs `NULL`.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant du modèle à supprimer |
+| `$id` | `int|string` | Identifiant du modèle |
+| `$data` | `array<string, mixed>` | Données brutes de mise à jour |
 
-**Retourne :** `bool` - True si supprimé, false si non trouvé
+**Retourne :** `TModel` - Le modèle mis à jour
+
+**Exceptions :** `ModelNotFoundException` - Si le modèle n'existe pas
 
 **Exemple :**
 ```php
-// Suppression (soft delete si SoftDeletes est utilisé)
-if ($repository->delete(1)) {
-    echo 'Product deleted successfully';
-}
+// Met à jour uniquement le nom
+$user = $repository->updateRaw(1, ['name' => 'John Updated']);
+
+// Définit l'email à NULL
+$user = $repository->updateRaw(1, ['email' => null]);
 ```
 
-### `restore(int $id): bool`
+---
 
-Restaure un modèle soft deleté.
+### `delete(int|string $id): bool`
+
+Supprime un modèle (soft delete si le trait `SoftDeletes` est utilisé).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant du modèle à restaurer |
+| `$id` | `int|string` | Identifiant du modèle |
 
-**Retourne :** `bool` - True si restauré, false si non trouvé ou non soft deleté
+**Retourne :** `bool` - `true` si supprimé, `false` si non trouvé
 
-**⚠️ Important :** Ne fonctionne que si le modèle utilise le trait `SoftDeletes`.
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-// Restaurer un produit supprimé
-if ($repository->restore(1)) {
-    echo 'Product restored successfully';
+$deleted = $repository->delete(42);
+if ($deleted) {
+    echo "L'utilisateur a été supprimé";
 }
 ```
 
-### `forceDelete(int $id): bool`
+---
 
-Supprime définitivement un modèle (hard delete), même s'il est déjà soft deleté.
+### `restore(int|string $id): bool`
+
+Restaure un modèle soft-deleted.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$id` | `int` | Identifiant du modèle à supprimer définitivement |
+| `$id` | `int|string` | Identifiant du modèle |
 
-**Retourne :** `bool` - True si supprimé, false si non trouvé
+**Retourne :** `bool` - `true` si restauré, `false` sinon
 
-**⚠️ Important :** Ne fonctionne que si le modèle utilise le trait `SoftDeletes`. Cette opération est irréversible.
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-// Suppression définitive (hard delete)
-if ($repository->forceDelete(1)) {
-    echo 'Product permanently deleted';
+$restored = $repository->restore(42);
+if ($restored) {
+    echo "L'utilisateur a été restauré";
 }
 ```
+
+---
+
+### `forceDelete(int|string $id): bool`
+
+Supprime définitivement un modèle (hard delete).
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$id` | `int|string` | Identifiant du modèle |
+
+**Retourne :** `bool` - `true` si supprimé, `false` si non trouvé
+
+**Exceptions :** Aucune
+
+**Exemple :**
+```php
+$deleted = $repository->forceDelete(42);
+if ($deleted) {
+    echo "L'utilisateur a été définitivement supprimé";
+}
+```
+
+---
+
+### `forceDeleteBulk(AbstractRecord $criteria): int`
+
+Supprime définitivement plusieurs modèles correspondant aux critères.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$criteria` | `AbstractRecord` | Critères de sélection |
+
+**Retourne :** `int` - Nombre de modèles supprimés
+
+**Exceptions :** Aucune
+
+**Exemple :**
+```php
+$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
+$count = $repository->forceDeleteBulk($criteria);
+echo "$count utilisateurs inactifs supprimés";
+```
+
+---
 
 ### `count(?AbstractRecord $criteria = null): int`
 
-Compte le nombre de modèles correspondant aux critères.
+Compte les modèles correspondant aux critères.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$criteria` | `AbstractRecord|null` | Critères de filtrage (null pour tous) |
+| `$criteria` | `AbstractRecord|null` | Critères optionnels |
 
-**Retourne :** `int` - Nombre total de modèles
+**Retourne :** `int` - Nombre de modèles
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-$total = $repository->count(); // Tous les utilisateurs
+// Compte tous les utilisateurs
+$total = $repository->count();
 
+// Compte les utilisateurs actifs
 $criteria = new UserFiltersRecord(status: UserStatus::ACTIVE);
 $activeCount = $repository->count($criteria);
 ```
 
+---
+
 ### `exists(AbstractRecord $criteria): bool`
 
-Vérifie l'existence d'au moins un modèle correspondant aux critères.
+Vérifie si au moins un modèle correspond aux critères.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$criteria` | `AbstractRecord` | Critères de recherche |
+| `$criteria` | `AbstractRecord` | Critères de vérification |
 
-**Retourne :** `bool` - True si au moins un modèle existe
+**Retourne :** `bool` - `true` si un modèle existe
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
 $criteria = new UserFiltersRecord(email: 'john@example.com');
 if ($repository->exists($criteria)) {
-    echo 'Email already exists';
+    echo "L'utilisateur existe déjà";
 }
 ```
+
+---
 
 ### `paginate(PaginateRecord $record): LengthAwarePaginator`
 
-Récupère des résultats paginés selon les critères.
+Paginer les résultats correspondant aux critères.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `PaginateRecord` | Configuration de pagination (page, limite, tri, filtres) |
+| `$record` | `PaginateRecord` | Configuration de pagination |
 
-**Retourne :** `LengthAwarePaginator<TModel>` - Instance du paginateur Laravel
+**Retourne :** `LengthAwarePaginator<TModel>` - Résultats paginés
+
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-$paginateRecord = new PaginateRecord(
+$filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
+$columns = new SelectColumns(['id', 'name', 'email']);
+
+$record = new PaginateRecord(
     perPage: 15,
     page: 2,
-    sortBy: new SortColumns('created_at:desc'),
-    filters: new UserFiltersRecord(status: UserStatus::ACTIVE)
+    filters: $filters,
+    columns: $columns,
+    sortBy: 'created_at',
+    sortDir: SortDir::DESC
 );
 
-$users = $repository->paginate($paginateRecord);
-foreach ($users as $user) {
-    echo $user->name;
-}
-echo $users->links(); // Liens de pagination
+$paginator = $repository->paginate($record);
+echo "Page {$paginator->currentPage()} sur {$paginator->lastPage()}";
 ```
+
+---
 
 ### `deleteBulk(AbstractRecord $criteria): int`
 
-Supprime plusieurs modèles correspondant aux critères (soft delete si le modèle utilise `SoftDeletes`, sinon hard delete).
+Supprime plusieurs modèles correspondant aux critères.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$criteria` | `AbstractRecord` | Critères pour sélectionner les modèles à supprimer |
+| `$criteria` | `AbstractRecord` | Critères de sélection |
 
-**Retourne :** `int` - Nombre d'enregistrements supprimés
+**Retourne :** `int` - Nombre de modèles supprimés
 
-**Exemple :**
-```php
-$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
-$deletedCount = $repository->deleteBulk($criteria);
-echo "Deleted {$deletedCount} inactive users";
-```
-
-### `forceDeleteBulk(AbstractRecord $criteria): int`
-
-Supprime définitivement plusieurs modèles correspondant aux critères (hard delete), même s'ils sont soft deletés.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$criteria` | `AbstractRecord` | Critères pour sélectionner les modèles à supprimer définitivement |
-
-**Retourne :** `int` - Nombre d'enregistrements supprimés définitivement
-
-**⚠️ Important :** Cette opération est irréversible. Si le modèle utilise `SoftDeletes`, les enregistrements sont définitivement supprimés de la base de données.
+**Exceptions :** Aucune
 
 **Exemple :**
 ```php
-// Supprimer définitivement tous les utilisateurs inactifs
-$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
-$deletedCount = $repository->forceDeleteBulk($criteria);
-echo "Permanently deleted {$deletedCount} inactive users";
-
-// Supprimer définitivement tous les soft deleted
-$criteria = new ProductFiltersRecord(is_deleted: true);
-$deletedCount = $repository->forceDeleteBulk($criteria);
-echo "Permanently deleted {$deletedCount} soft deleted products";
+$criteria = new UserFiltersRecord(role: UserRole::GUEST);
+$count = $repository->deleteBulk($criteria);
+echo "$count utilisateurs invités supprimés";
 ```
+
+---
 
 ## Cas d'utilisation
 
-### Cas 1 : Repository utilisateur standard (sans SoftDelete)
+### Cas 1 : Repository utilisateur avec filtres avancés
+
+**Problème :** Implémenter un repository pour les utilisateurs avec des filtres de recherche et des soft deletes.
+
+**Solution :** Étendre `AbstractRepository` et implémenter `applyFilters()`
 
 ```php
 <?php
@@ -390,274 +502,182 @@ final class UserRepository extends AbstractRepository
 {
     public function __construct()
     {
-        parent::__construct(User::class, UserRecord::class);
+        parent::__construct(
+            User::class,
+            UserRecord::class
+        );
     }
 
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
-        if (!$filters instanceof UserFiltersRecord) {
-            return;
-        }
-
-        if ($filters->status !== null) {
-            $query->where('status', $filters->status->value);
-        }
-
-        if ($filters->minAge !== null) {
-            $query->whereRaw('YEAR(NOW()) - YEAR(birth_date) >= ?', [$filters->minAge]);
-        }
-    }
-}
-```
-
-### Cas 2 : Repository produit avec SoftDelete
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Repository\AbstractRepository;
-use Illuminate\Database\Eloquent\Builder;
-
-final class ProductRepository extends AbstractRepository
-{
-    public function __construct()
-    {
-        parent::__construct(Product::class, ProductRecord::class);
-    }
-
-    protected function applyFilters(Builder $query, AbstractRecord $filters): void
-    {
-        if (!$filters instanceof ProductFiltersRecord) {
-            return;
-        }
-
-        if ($filters->is_active !== null) {
-            $query->where('is_active', $filters->is_active);
-        }
-
-        // Filtre pour inclure ou exclure les soft deleted
-        if ($filters->include_deleted === true) {
-            $query->withTrashed();
-        } elseif ($filters->include_deleted === false) {
-            $query->withoutTrashed();
+        if ($filters instanceof UserFiltersRecord) {
+            if ($filters->name !== null) {
+                $query->where('name', 'like', "%{$filters->name}%");
+            }
+            
+            if ($filters->email !== null) {
+                $query->where('email', $filters->email);
+            }
+            
+            if ($filters->status !== null) {
+                $query->where('status', $filters->status);
+            }
         }
     }
 }
-```
 
-### Cas 3 : Gestion des soft deleted dans les recherches
-
-```php
-// Récupérer uniquement les produits actifs (non supprimés)
-$filters = new ProductFiltersRecord(is_active: true);
-$activeProducts = $repository->findBy(new FindByRecord(filters: $filters));
-
-// Récupérer tous les produits (y compris supprimés)
-$allProducts = $repository->findWithTrashed(1);
-
-// Restaurer un produit supprimé
-if ($repository->restore(5)) {
-    echo "Product restored";
-}
-
-// Suppression définitive d'un produit
-$repository->forceDelete(5);
-
-// Suppression définitive de tous les soft deleted
-$filters = new ProductFiltersRecord(is_deleted: true);
-$repository->forceDeleteBulk($filters);
-```
-
-### Cas 4 : Recherche avancée avec colonnes spécifiques et tri multi-colonnes
-
-```php
-// Rechercher uniquement les noms et emails des utilisateurs actifs
-$filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
-$columns = new SelectColumns(['id', 'name', 'email']);
-
-// Tri simple
-$findByRecord = new FindByRecord(
-    filters: $filters,
-    columns: $columns,
-    sortBy: new SortColumns('name:asc')
+// Utilisation
+$repository = new UserRepository();
+$filters = new UserFiltersRecord(
+    name: 'John',
+    status: UserStatus::ACTIVE
 );
 
-// Tri multi-colonnes
-$findByRecord = new FindByRecord(
-    filters: $filters,
-    columns: $columns,
-    sortBy: new SortColumns('name:asc|created_at:desc')
+$users = $repository->findBy(
+    new FindByRecord(filters: $filters)
 );
-
-$users = $userRepository->findBy($findByRecord);
-foreach ($users as $user) {
-    // Seuls id, name, email sont chargés
-    echo "{$user->name} ({$user->email})\n";
-}
 ```
 
-### Cas 5 : Mise à jour partielle
+---
+
+### Cas 2 : Filtrage JSON avec cluster
+
+**Problème :** Rechercher des utilisateurs avec des métadonnées complexes stockées en JSON.
+
+**Solution :** Utiliser `whereCluster()` pour interroger la colonne JSON.
 
 ```php
-// Seul le champ name sera mis à jour
-$updateRecord = new UserRecord(
-    name: 'New Name',
-    // email et autres champs sont null (ignorés)
-);
+// Recherche des utilisateurs ayant un statut 'active' et le rôle 'admin'
+$users = $repository
+    ->whereCluster('metadata', 'status=active & role=admin')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
 
-$user = $userRepository->update(1, $updateRecord);
-// L'email reste inchangé
+// Recherche avec agrégation
+$users = $repository
+    ->whereCluster('metadata', 'COUNT(addresses) > 2')
+    ->paginate(new PaginateRecord(
+        perPage: 10,
+        page: 1,
+        filters: new EmptyRecord()
+    ));
+
+// Recherche avec chemin de tableau
+$users = $repository
+    ->whereCluster('metadata', 'addresses[city=Kinshasa]')
+    ->count(); // 5
 ```
 
-### Cas 6 : Utilisation de `createRaw` pour OTP service
+---
+
+### Cas 3 : Mise à jour sélective avec gestion des NULL
+
+**Problème :** Mettre à jour uniquement certains champs tout en permettant de définir des valeurs `NULL`.
+
+**Solution :** Utiliser `update()` avec un record partiel et `updateRaw()` pour définir des `NULL`.
 
 ```php
-private function createOtpModel(
-    Model $otpable,
-    OtpProcessingContext $context,
-    ?array $channels,
-    ?array $metadata,
-    int $expiresInMinutes,
-    int $maxAttempts,
-    string $plainCode,
-): OneTimePassword {
-    $data = [
-        'otpable_type' => $otpable->getMorphClass(),
-        'otpable_id' => $otpable->getKey(),
-        'token_hash' => $this->hash->make($plainCode),
-        'type' => $context->getType(),
-        'destination' => $context->getDestination(),
-        'channels' => $channels,
-        'meta' => $metadata,
-        'max_attempts' => $maxAttempts,
-        'expires_at' => now()->addMinutes($expiresInMinutes),
-    ];
+// Mise à jour partielle avec un record
+$partialRecord = new UserRecord(
+    name: 'Updated Name',
+    // Les autres champs restent null et sont ignorés
+);
+$user = $repository->update(1, $partialRecord);
 
-    return $this->otpRepository->createRaw($data);
+// Définition explicite de NULL
+$user = $repository->updateRaw(1, [
+    'email' => null, // Supprime l'email
+    'status' => UserStatus::SUSPENDED->value,
+]);
+```
+
+---
+
+### Cas 4 : Gestion des soft deletes
+
+**Problème :** Gérer la suppression et la restauration des modèles.
+
+**Solution :** Utiliser les méthodes dédiées `delete()`, `restore()`, et `forceDelete()`.
+
+```php
+// Soft delete
+$repository->delete(42);
+
+// Vérifier si le modèle est supprimé
+$user = $repository->findWithTrashed(42);
+if ($user !== null && $user->trashed()) {
+    echo "L'utilisateur est supprimé";
 }
+
+// Restaurer
+$restored = $repository->restore(42);
+if ($restored) {
+    echo "L'utilisateur a été restauré";
+}
+
+// Suppression définitive
+$repository->forceDelete(42);
+
+// Suppression définitive en masse
+$criteria = new UserFiltersRecord(status: UserStatus::INACTIVE);
+$count = $repository->forceDeleteBulk($criteria);
+echo "$count utilisateurs supprimés définitivement";
 ```
 
-## Méthodes protégées
-
-### `buildQuery(AbstractRecord $filters): Builder<TModel>`
-
-Construit la requête Eloquent avec les filtres appliqués.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$filters` | `AbstractRecord` | Record contenant les filtres à appliquer |
-
-**Retourne :** `Builder<TModel>` - Query builder configuré
-
-**Comportement :**
-- Retourne une nouvelle instance de query
-- Ignore les filtres si c'est un `EmptyRecord`
-- Délègue l'application des filtres à `applyFilters()`
-
-### `applyFilters(Builder $query, AbstractRecord $filters): void`
-
-Méthode abstraite à implémenter dans les repositories concrets.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$query` | `Builder<TModel>` | Query builder à configurer |
-| `$filters` | `AbstractRecord` | Record contenant les critères |
-
-**À implémenter :** Logique spécifique de filtrage selon la structure du record
-
-### `usesSoftDeletes(): bool` (privée)
-
-Vérifie si le modèle utilise le trait `SoftDeletes`.
-
-**Retourne :** `bool` - True si le modèle utilise SoftDeletes
-
-## Flux d'exécution
-
-```
-Request → Repository
-    ├── create() → Record → toArrayWithoutNulls() → Model::create()
-    ├── createRaw() → array → Model::create()
-    ├── find() → Model::find()
-    ├── findWithTrashed() → withTrashed() → Model::find()
-    ├── findBy() → buildQuery() → applyFilters() → select()/orderBy()/limit() → get()
-    │   └── orderBy() → Pour chaque colonne dans SortColumns (ordre multiple)
-    ├── update() → find() → array_filter() → update() → refresh()
-    ├── updateRaw() → find() → update() → refresh()
-    ├── delete() → find() → delete() (soft ou hard selon le modèle)
-    ├── restore() → findWithTrashed() → model->restore()
-    ├── forceDelete() → findWithTrashed() → model->forceDelete()
-    ├── deleteBulk() → buildQuery() → delete() (soft ou hard selon le modèle)
-    ├── forceDeleteBulk() → buildQuery() → forceDelete() (hard delete permanent)
-    ├── count() → buildQuery() → count()
-    ├── exists() → buildQuery() → exists()
-    └── paginate() → buildQuery() → paginate()
-```
+---
 
 ## Gestion des erreurs
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Modèle non trouvé lors de l'update | `ModelNotFoundException` | `{ModelClass} with id {id} not found` |
-| Modèle non trouvé lors du updateRaw | `ModelNotFoundException` | `{ModelClass} with id {id} not found` |
-| Erreur de validation Eloquent | Exception Eloquent native | Dépend du modèle |
-| Connexion base de données | `PDOException` | Dépend du pilote |
+| Modèle non trouvé pour `update()` | `ModelNotFoundException` | `"Model [ModelClass] with ID [id] not found"` |
+| Modèle non trouvé pour `updateRaw()` | `ModelNotFoundException` | `"Model [ModelClass] with ID [id] not found"` |
+| Erreur de base de données | `Illuminate\Database\QueryException` | Message SQL personnalisé |
+| Syntaxe de cluster invalide | `InvalidArgumentException` | `"Invalid cluster query syntax: [query]"` |
 
 ## Intégration
 
-**Avec Eloquent :**
-- Utilise les Query Builder Eloquent pour toutes les opérations
-- Supporte nativement les relations, scopes et events
-- Détection automatique du trait `SoftDeletes`
+### Avec Laravel
+- Utilise `Illuminate\Database\Eloquent\Model` pour les entités
+- Utilise `Illuminate\Contracts\Pagination\LengthAwarePaginator` pour la pagination
+- Supporte le trait `Illuminate\Database\Eloquent\SoftDeletes`
 
-**Avec les Records :**
-- `toArrayWithoutNulls()` pour la création/mise à jour
-- Les valeurs null sont ignorées lors des updates
+### Avec DomainStructures
+- Utilise `AbstractRecord` pour les transferts de données
+- Utilise `EmptyRecord` comme enregistrement vide
+- S'intègre avec `RepositoryInfoRecord`, `FindByRecord`, `PaginateRecord`
 
-**Avec les Value Objects :**
-- `SelectColumns` pour filtrer les colonnes
-- `SortColumns` pour le tri simple ou multi-colonnes (ex: `'name:asc|created_at:desc'`)
-- Plusieurs colonnes de tri sont supportées via une syntaxe à barre verticale
-
-**Avec le système de pagination :**
-- Utilise `LengthAwarePaginator` de Laravel
-- Compatible avec les vues de pagination Blade
+### Avec LaravelCluster
+- Utilise la méthode `whereCluster()` sur le query builder
+- Supporte les requêtes complexes sur colonnes JSON
 
 ## Performance
 
-**Optimisations :**
-- Les requêtes utilisent les indexes standards d'Eloquent
-- `array_filter` sur les updates (ignorer les valeurs null)
-- Limitation automatique des colonnes via `SelectColumns`
-- Pas de chargement des relations par défaut
-- Détection automatique de SoftDeletes sans overhead inutile
-- Tri multi-colonnes appliqué en une seule passe de requête
+- **Complexité :** O(n) pour les opérations CRUD, O(1) pour les find par ID
+- **Cache :** Aucun cache intégré, peut être ajouté via des décorateurs
+- **Hydratation :** Les records sont hydratés automatiquement
+- **Requêtes :** Les filtres cluster peuvent être lourds sur de grands jeux de données
 
-**Complexité :**
-- Opérations CRUD : O(1) pour la logique métier (délègue à la BDD)
-- findBy avec conditions : O(n) où n = nombre de filtres
-- Tri multi-colonnes : O(k) où k = nombre de colonnes de tri
-- deleteBulk / forceDeleteBulk : O(m) où m = nombre de modèles supprimés
-- restore/forceDelete : O(1) avec détection de trait
-
-**Points d'attention :**
-- Les méthodes `find()` et `update()` effectuent 2 requêtes (SELECT + UPDATE)
-- `refresh()` après update recharge le modèle (requête supplémentaire)
-- `findWithTrashed()` ajoute `withTrashed()` si le modèle utilise SoftDeletes
-- `forceDeleteBulk()` supprime définitivement - opération irréversible
-- Le tri multi-colonnes peut impacter les performances sur de très grands jeux de données sans indexes appropriés
+### Optimisations recommandées
+1. Ajouter des index sur les colonnes JSON fréquemment filtrées
+2. Utiliser `select()` pour limiter les colonnes récupérées
+3. Utiliser `paginate()` plutôt que `findBy()` pour les gros volumes
+4. Éviter les filtres cluster trop complexes sur de grandes tables
 
 ## Compatibilité
 
-| Version | Support | Remarques |
-|---------|---------|-----------|
-| PHP 8.2+ | ✅ Complet | Types génériques, readonly classes |
-| PHP 8.1 | ✅ Complet | Enums supportés |
-| Laravel 10+ | ✅ Complet | Support complet de SoftDeletes |
-| Laravel 9 | ✅ Complet | Tests passés |
+| Version PHP | Support | Notes |
+|-------------|---------|-------|
+| PHP 8.1+ | ✅ Complet | Support complet des types |
+| PHP 8.2+ | ✅ Complet | Support des readonly classes |
+| PHP 8.3+ | ✅ Complet | Support des types dynamiques |
 
-## Exemple complet avec SoftDelete, tri multi-colonnes et createRaw
+| Version Laravel | Support | Notes |
+|-----------------|---------|-------|
+| Laravel 11+ | ✅ Complet | Support complet |
+| Laravel 12+ | ✅ Complet | Support complet |
+| Laravel 13+ | ✅ Complet | Support complet |
+
+## Exemple complet
 
 ```php
 <?php
@@ -667,143 +687,102 @@ declare(strict_types=1);
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Repository\Records\PaginateRecord;
-use AndyDefer\Repository\ValueObjects\SelectColumns;
-use AndyDefer\Repository\ValueObjects\SortColumns;
+use AndyDefer\Repository\Records\SelectColumns;
+use AndyDefer\Repository\Records\SortColumns;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-// 1. Modèle avec SoftDelete
-final class Product extends Model
-{
-    use SoftDeletes;
-    
-    protected $fillable = ['name', 'price', 'category_id', 'quantity'];
-}
-
-// 2. Définir le repository concret
 final class ProductRepository extends AbstractRepository
 {
     public function __construct()
     {
-        parent::__construct(Product::class, ProductRecord::class);
+        parent::__construct(
+            Product::class,
+            ProductRecord::class
+        );
     }
 
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
-        if (!$filters instanceof ProductFiltersRecord) {
-            return;
-        }
-
-        if ($filters->categoryId !== null) {
-            $query->where('category_id', $filters->categoryId);
-        }
-
-        if ($filters->minPrice !== null) {
-            $query->where('price', '>=', $filters->minPrice);
-        }
-
-        if ($filters->inStock === true) {
-            $query->where('quantity', '>', 0);
-        }
-        
-        // Gestion des soft deleted dans les filtres
-        if ($filters->includeDeleted === true) {
-            $query->withTrashed();
-        } elseif ($filters->includeDeleted === false) {
-            $query->withoutTrashed();
+        if ($filters instanceof ProductFiltersRecord) {
+            if ($filters->name !== null) {
+                $query->where('name', 'like', "%{$filters->name}%");
+            }
+            
+            if ($filters->min_price !== null) {
+                $query->where('price', '>=', $filters->min_price);
+            }
+            
+            if ($filters->max_price !== null) {
+                $query->where('price', '<=', $filters->max_price);
+            }
+            
+            if ($filters->is_active !== null) {
+                $query->where('is_active', $filters->is_active);
+            }
         }
     }
 }
 
-// 3. Utiliser le repository
+// Utilisation complète
 $repository = new ProductRepository();
 
-// Création avec create (via Record)
-$productRecord = new ProductRecord(
-    name: 'Laptop',
+// Création
+$product = $repository->create(new ProductRecord(
+    name: 'Laptop Pro',
     price: 999.99,
-    categoryId: 5,
-    quantity: 10
-);
-$product = $repository->create($productRecord);
+    stock: 25,
+    is_active: true
+));
 
-// Création avec createRaw (données brutes)
-$rawData = [
-    'name' => 'Mouse',
-    'price' => 29.99,
-    'category_id' => 5,
-    'quantity' => 100,
-    'is_active' => true,
-];
-$mouse = $repository->createRaw($rawData);
-
-// Soft delete du produit
-$repository->delete($product->id);
-
-// Vérifier que le produit est soft deleté
-$deletedProduct = $repository->findWithTrashed($product->id);
-if ($deletedProduct && $deletedProduct->trashed()) {
-    echo "Product is deleted since: {$deletedProduct->deleted_at}";
-}
-
-// Restaurer le produit
-if ($repository->restore($product->id)) {
-    echo "Product restored!";
-}
-
-// Suppression définitive
-$repository->forceDelete($product->id);
-
-// Nettoyage de masse : supprimer définitivement tous les soft deleted
-$filters = new ProductFiltersRecord(includeDeleted: true);
-$deletedCount = $repository->forceDeleteBulk($filters);
-echo "Permanently deleted {$deletedCount} products";
-
-// Rechercher des produits (exclut les soft deleted par défaut) avec tri multiple
+// Recherche avec filtres cluster et sélection de colonnes
 $filters = new ProductFiltersRecord(
-    categoryId: 5,
-    minPrice: 500,
-    inStock: true,
-    includeDeleted: false
+    min_price: 500.00,
+    is_active: true
 );
-$columns = new SelectColumns(['id', 'name', 'price']);
 
-// Tri simple
-$findByRecord = new FindByRecord(
+$sortBy = new SortColumns('price:asc|created_at:desc');
+$columns = new SelectColumns(['id', 'name', 'price', 'stock']);
+
+$record = new FindByRecord(
     filters: $filters,
-    columns: $columns,
-    sortBy: new SortColumns('price:asc'),
-    limit: 20
+    sortBy: $sortBy,
+    limit: 20,
+    columns: $columns
 );
 
-// Tri multi-colonnes
-$findByRecordMultiSort = new FindByRecord(
-    filters: $filters,
-    columns: $columns,
-    sortBy: new SortColumns('price:asc|name:desc|id:asc'),
-    limit: 20
-);
+$products = $repository
+    ->whereCluster('metadata', 'category=laptop & stock>10')
+    ->findBy($record);
 
-$products = $repository->findBy($findByRecordMultiSort);
-
-// Pagination avec tri multiple
-$paginateRecord = new PaginateRecord(
+// Pagination
+$paginator = $repository->paginate(new PaginateRecord(
     perPage: 15,
-    page: 1,
-    sortBy: new SortColumns('category_id:asc|price:desc'),
-    filters: $filters
-);
+    page: 2,
+    filters: $filters,
+    columns: $columns,
+    sortBy: 'price',
+    sortDir: SortDir::DESC
+));
 
-$paginatedProducts = $repository->paginate($paginateRecord);
+// Mise à jour et suppression
+$updated = $repository->update(1, new ProductRecord(
+    price: 899.99,
+    stock: 30
+));
+
+$repository->delete(2);
+
+// Comptage
+$activeCount = $repository->count(
+    new ProductFiltersRecord(is_active: true)
+);
 ```
 
 ## Voir aussi
 
-- `AbstractRepositoryInterface` - Interface définissant le contrat
-- `FindByRecord` - Configuration pour les recherches
-- `PaginateRecord` - Configuration pour la pagination
-- `SelectColumns` - Value object pour les colonnes
-- `SortColumns` - Value object pour le tri simple ou multi-colonnes
-- `ModelNotFoundException` - Exception levée lors des updates
-- `EmptyRecord` - Record vide pour absence de filtres
-- `SoftDeletes` - Trait Laravel pour le soft delete
+- `AbstractRecord` - Structure de données immuable pour le transfert
+- `FindByRecord` - Configuration de recherche et de tri
+- `PaginateRecord` - Configuration de pagination
+- `RepositoryInfoRecord` - Informations du repository
+- `ModelNotFoundException` - Exception de modèle non trouvé
+- `LaravelCluster` - Moteur de requêtes JSON complexes

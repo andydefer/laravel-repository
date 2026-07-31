@@ -17,9 +17,7 @@
 5. [Méthodes à surcharger](#méthodes-à-surcharger)
 6. [Bonnes pratiques](#bonnes-pratiques)
 7. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
-8. [Tests](#tests)
-9. [Génération de code avec Directive Forge](#génération-de-code-avec-directive-forge)
-10. [Licence](#licence)
+8. [Licence](#licence)
 
 ---
 
@@ -34,14 +32,9 @@ composer require andydefer/laravel-repository
 - PHP 8.1 ou supérieur
 - Laravel 12.x, 13.x, 14.x ou 15.x
 - Dépendances automatiques :
-  - `andydefer/php-records` (structures typées)
+  - `andydefer/domain-structures` (structures typées)
+  - `andydefer/laravel-cluster` (filtres JSON avancés)
   - `laravel/framework`
-
-### Publier la configuration (Optionnel)
-
-```bash
-php artisan vendor:publish --tag=repository-config
-```
 
 ---
 
@@ -70,6 +63,37 @@ final class UserRecord extends AbstractRecord
 - ✅ Les champs optionnels = `null` par défaut
 - ❌ Pas de logique métier
 - ❌ Pas de tableaux bruts (utiliser `TypedCollection`)
+
+### Filtres Cluster sur colonnes JSON
+
+Le package intègre `laravel-cluster` pour interroger des colonnes JSON avec une syntaxe puissante :
+
+```php
+// Conditions simples
+$users = $repository
+    ->whereCluster('metadata', 'status=active')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// Conditions combinées
+$users = $repository
+    ->whereCluster('metadata', 'status=active & age>25')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// Chemins de tableau
+$users = $repository
+    ->whereCluster('metadata', 'addresses[city=Kinshasa]')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// Fonctions d'agrégation
+$users = $repository
+    ->whereCluster('metadata', 'COUNT(addresses) > 2')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// Conditions OR
+$users = $repository
+    ->whereCluster('metadata', 'status=active | status=suspended')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+```
 
 ### Records de configuration
 
@@ -216,7 +240,11 @@ use Illuminate\Database\Eloquent\Model;
 
 final class User extends Model
 {
-    protected $fillable = ['name', 'email', 'status'];
+    protected $fillable = ['name', 'email', 'status', 'metadata'];
+    
+    protected $casts = [
+        'metadata' => 'array',
+    ];
 }
 ```
 
@@ -228,6 +256,7 @@ final class User extends Model
 namespace App\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 final class UserRecord extends AbstractRecord
 {
@@ -235,6 +264,7 @@ final class UserRecord extends AbstractRecord
         public readonly ?string $name = null,
         public readonly ?string $email = null,
         public readonly ?UserStatus $status = null,
+        public readonly ?ClusterVO $metadata = null,
     ) {}
 }
 ```
@@ -254,6 +284,7 @@ final class UserFiltersRecord extends AbstractRecord
         public readonly ?string $name = null,
         public readonly ?string $email = null,
         public readonly ?UserStatus $status = null,
+        public readonly ?string $cluster_query = null, // Pour les filtres JSON
     ) {}
 }
 ```
@@ -296,6 +327,11 @@ final class UserRepository extends AbstractRepository
         if ($filters->status !== null) {
             $query->where('status', $filters->status);
         }
+
+        // Filtre cluster sur la colonne JSON
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
+        }
     }
 }
 ```
@@ -323,6 +359,7 @@ class UserService
             name: $name,
             email: $email,
             status: UserStatus::ACTIVE,
+            metadata: ClusterVO::fromArray(['preferences' => ['theme' => 'dark']]),
         ));
     }
 
@@ -344,10 +381,14 @@ class UserService
         return $this->repository->delete($id);
     }
 
-    // Lister avec filtres et tri multiple
+    // Lister avec filtres JSON et tri multiple
     public function listActiveUsersByStatusAndName(): array
     {
-        $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
+        $filters = new UserFiltersRecord(
+            status: UserStatus::ACTIVE,
+            cluster_query: 'preferences.theme=dark & age>18'
+        );
+        
         $findBy = new FindByRecord(
             filters: $filters,
             limit: 50,
@@ -369,10 +410,14 @@ class UserService
         return $this->repository->paginate($paginate);
     }
 
-    // Compter les enregistrements
+    // Compter les enregistrements avec filtres
     public function countActiveUsers(): int
     {
-        $filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
+        $filters = new UserFiltersRecord(
+            status: UserStatus::ACTIVE,
+            cluster_query: 'verified=true'
+        );
+        
         return $this->repository->count($filters);
     }
 
@@ -389,6 +434,13 @@ class UserService
         $filters = new UserFiltersRecord(status: UserStatus::INACTIVE);
         return $this->repository->deleteBulk($filters);
     }
+    
+    // Suppression définitive groupée
+    public function forceDeleteInactiveUsers(): int
+    {
+        $filters = new UserFiltersRecord(status: UserStatus::INACTIVE);
+        return $this->repository->forceDeleteBulk($filters);
+    }
 }
 ```
 
@@ -401,6 +453,8 @@ class UserService
 | Méthode | Paramètres | Retour | Description |
 |---------|------------|--------|-------------|
 | `info()` | - | `RepositoryInfoRecord` | Informations du repository |
+| `whereCluster(string $column, string $query)` | `$column, $query` | `$this` | Appliquer un filtre JSON cluster |
+| `clearClusterFilters()` | - | `$this` | Supprimer tous les filtres cluster |
 | `create(AbstractRecord $record)` | `$record` | `Model` | Créer un nouvel enregistrement |
 | `createRaw(array $data)` | `$data` | `Model` | Créer un enregistrement à partir de données brutes |
 | `find(int $id)` | `$id` | `Model|null` | Trouver par ID |
@@ -429,6 +483,7 @@ class UserService
 |-----------|-------|
 | `ModelNotFoundException` | `update()` ou `updateRaw()` sur un ID inexistant |
 | `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` ou `SortColumns` |
+| `InvalidArgumentException` | Syntaxe de requête cluster invalide |
 
 ---
 
@@ -489,10 +544,36 @@ protected function applyFilters(Builder $query, AbstractRecord $filters): void
     $query->when($filters->status ?? null, fn($q, $status) => 
         $q->where('status', $status)
     );
+    
+    // Filtres cluster
+    $query->when($filters->cluster_query ?? null, fn($q, $query) => 
+        $q->whereCluster('metadata', $query)
+    );
 }
 ```
 
-### 5. Utiliser `createRaw` pour des données brutes
+### 5. Utiliser `whereCluster()` pour les filtres JSON
+
+```php
+// ✅ BON - Chaînage pour des requêtes complexes
+$users = $repository
+    ->whereCluster('metadata', 'status=active')
+    ->whereCluster('metadata', 'role=admin')
+    ->whereCluster('metadata', 'age>=25')
+    ->findBy(new FindByRecord(filters: new EmptyRecord()));
+
+// ✅ BON - Avec des filtres Record existants
+$filters = new UserFiltersRecord(status: UserStatus::ACTIVE);
+$users = $repository
+    ->whereCluster('metadata', 'verified=true')
+    ->findBy(new FindByRecord(filters: $filters));
+
+// ✅ BON - Nettoyer les filtres entre les requêtes
+$repository->clearClusterFilters();
+$all = $repository->count();
+```
+
+### 6. Utiliser `createRaw` pour des données brutes
 
 ```php
 // ✅ BON - Quand vous avez déjà des données brutes
@@ -512,7 +593,7 @@ $data = [
 $user = $repository->createRaw($data);
 ```
 
-### 6. Trier avec SortColumns
+### 7. Trier avec SortColumns
 
 ```php
 // ✅ BON - Tri simple
@@ -526,7 +607,7 @@ $sortString = 'status:asc|created_at:desc|name:asc';
 $sort = new SortColumns($sortString);
 ```
 
-### 7. Tester vos Repositories
+### 8. Tester vos Repositories
 
 ```php
 final class UserRepositoryTest extends IntegrationTestCase
@@ -552,21 +633,16 @@ final class UserRepositoryTest extends IntegrationTestCase
         ]);
     }
     
-    public function test_create_raw_accepte_null(): void
+    public function test_where_cluster_filters_results(): void
     {
-        $data = [
-            'name' => 'User With Null Email',
-            'email' => null,
-            'status' => 'active',
-        ];
+        $this->createUser(['metadata' => ['status' => 'active', 'role' => 'admin']]);
+        $this->createUser(['metadata' => ['status' => 'inactive', 'role' => 'doctor']]);
         
-        $user = $this->repository->createRaw($data);
+        $users = $this->repository
+            ->whereCluster('metadata', 'status=active & role=admin')
+            ->findBy(new FindByRecord(filters: new EmptyRecord()));
         
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'name' => 'User With Null Email',
-            'email' => null,
-        ]);
+        $this->assertCount(1, $users);
     }
     
     public function test_find_by_with_multiple_sort_columns(): void
@@ -637,16 +713,22 @@ final class OrderRepository extends AbstractRepository
                   ->orWhere('customer_name', 'like', '%' . $filters->search . '%');
             });
         }
+        
+        // Filtre cluster sur métadonnées
+        if ($filters->cluster_query !== null) {
+            $query->whereCluster('metadata', $filters->cluster_query);
+        }
     }
 }
 
-// Utilisation avec tri multi-colonnes
+// Utilisation avec tri multi-colonnes et filtres cluster
 $filters = new OrderFiltersRecord(
     fromDate: '2024-01-01',
     toDate: '2024-12-31',
     minAmount: 100,
     status: OrderStatus::PAID,
     search: 'ACME',
+    cluster_query: 'priority=high & shipping.express=true',
 );
 
 $paginate = new PaginateRecord(
@@ -682,11 +764,19 @@ final class Product extends Model
 {
     use SoftDeletes;
     
-    protected $fillable = ['name', 'price', 'quantity'];
+    protected $fillable = ['name', 'price', 'quantity', 'metadata'];
+    
+    protected $casts = [
+        'metadata' => 'array',
+    ];
 }
 
 // Utilisation
-$product = $repository->create(new ProductRecord(name: 'Laptop', price: 999.99));
+$product = $repository->create(new ProductRecord(
+    name: 'Laptop', 
+    price: 999.99,
+    metadata: ClusterVO::fromArray(['category' => 'electronics'])
+));
 
 // Soft delete
 $repository->delete($product->id);
@@ -710,68 +800,6 @@ $count = $repository->forceDeleteBulk($filters);
 
 ---
 
-## Tests
-
-### Configuration des tests
-
-Le package utilise SQLite en mémoire pour les tests d'intégration :
-
-```php
-// tests/IntegrationTestCase.php
-protected function defineEnvironment($app): void
-{
-    $app['config']->set('database.default', 'testbench');
-    $app['config']->set('database.connections.testbench', [
-        'driver' => 'sqlite',
-        'database' => ':memory:',
-        'prefix' => '',
-    ]);
-}
-```
-
-### Exécuter les tests
-
-```bash
-composer test
-```
-
----
-
-## Génération de code avec Directive Forge
-
-Ce package s'intègre à `directive-forge` pour générer automatiquement les repositories, records et filtres.
-
-### Installer Directive Forge
-
-```bash
-composer require andydefer/directive-forge --dev
-```
-
-### Commandes disponibles
-
-```bash
-# Générer un repository
-./vendor/bin/directive make-repository user
-
-# Générer un record
-./vendor/bin/directive make-record user-record
-```
-
-### Exemple de génération
-
-```bash
-# Créer un repository User
-./vendor/bin/directive make-repository user
-
-# Génère :
-# - app/Repositories/UserRepository.php
-# - app/Records/UserRecord.php (optionnel)
-# - app/Records/UserFiltersRecord.php (optionnel)
-```
-
----
-
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
-```
