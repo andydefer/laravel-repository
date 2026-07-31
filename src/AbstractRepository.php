@@ -58,7 +58,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @var array<array{column: string, query: string}>
      */
-    private array $clusterFilters = [];
+    protected array $clusterFilters = [];
 
     /**
      * Create a new repository instance.
@@ -495,7 +495,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  ClusterQueries|null  $clusterQueries  The cluster queries to apply
      * @return Builder<TModel>
      */
-    private function applyClusterQueries(Builder $query, ?ClusterQueries $clusterQueries): Builder
+    protected function applyClusterQueries(Builder $query, ?ClusterQueries $clusterQueries): Builder
     {
         if ($clusterQueries === null) {
             return $query;
@@ -516,7 +516,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @throws ModelNotFoundException When the model is not found
      */
-    private function findOrFail(int|string $id): Model
+    protected function findOrFail(int|string $id): Model
     {
         $model = $this->find($id);
 
@@ -532,7 +532,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      *
      * @return bool True if SoftDeletes is used
      */
-    private function usesSoftDeletes(): bool
+    protected function usesSoftDeletes(): bool
     {
         return in_array(SoftDeletes::class, class_uses_recursive($this->modelClass));
     }
@@ -543,7 +543,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  Model  $model  The model to check
      * @return bool True if the model is trashed
      */
-    private function isTrashed(Model $model): bool
+    protected function isTrashed(Model $model): bool
     {
         if (! $this->usesSoftDeletes()) {
             return false;
@@ -559,7 +559,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  AbstractRecord  $record  The record to extract from
      * @return array<string, mixed> The extracted data without null values
      */
-    private function extractNonEmptyRecordData(AbstractRecord $record): array
+    protected function extractNonEmptyRecordData(AbstractRecord $record): array
     {
         return array_filter(
             $record->toArrayWithoutNulls(),
@@ -573,7 +573,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  Builder<TModel>  $query  The query builder
      * @param  FindByRecord  $record  The search record
      */
-    private function applySelectColumns(Builder $query, FindByRecord $record): void
+    protected function applySelectColumns(Builder $query, FindByRecord $record): void
     {
         $query->select($record->columns->toArray());
     }
@@ -584,7 +584,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  Builder<TModel>  $query  The query builder
      * @param  FindByRecord  $record  The search record
      */
-    private function applySorting(Builder $query, FindByRecord $record): void
+    protected function applySorting(Builder $query, FindByRecord $record): void
     {
         if ($record->sortBy === null || $record->sortBy->isEmpty()) {
             return;
@@ -601,7 +601,7 @@ abstract class AbstractRepository implements AbstractRepositoryInterface
      * @param  Builder<TModel>  $query  The query builder
      * @param  FindByRecord  $record  The search record
      */
-    private function applyLimit(Builder $query, FindByRecord $record): void
+    protected function applyLimit(Builder $query, FindByRecord $record): void
     {
         if ($record->limit !== null) {
             $query->limit($record->limit);
