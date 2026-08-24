@@ -17,6 +17,8 @@ return new class extends Migration
             $table->string('status');
             $table->string('role');
             $table->integer('grade')->nullable();
+            $table->string('slug')->nullable();           // ✅ AJOUTÉ
+            $table->json('languages')->nullable();        // ✅ AJOUTÉ
             $table->json('metadata')->nullable();
             $table->json('preferences')->nullable();
             $table->timestamps();
