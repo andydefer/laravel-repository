@@ -15,9 +15,10 @@
 3. [Créer votre premier Repository](#créer-votre-premier-repository)
 4. [Référence de l'API](#référence-de-lapi)
 5. [Méthodes à surcharger](#méthodes-à-surcharger)
-6. [Bonnes pratiques](#bonnes-pratiques)
-7. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
-8. [Licence](#licence)
+6. [Proxies - AttributeProxy et TransformableProxy](#proxies---attributeproxy-et-transformableproxy)
+7. [Bonnes pratiques](#bonnes-pratiques)
+8. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
+9. [Licence](#licence)
 
 ---
 
@@ -604,6 +605,349 @@ class UserService
 
 ---
 
+## Proxies - AttributeProxy et TransformableProxy
+
+### Qu'est-ce que c'est ?
+
+Les Proxies sont des classes qui permettent de **caster automatiquement** les attributs Eloquent vers des Value Objects, Records ou Collections typées de manière transparente.
+
+### Pourquoi les utiliser ?
+
+| Sans Proxies | Avec Proxies |
+|--------------|--------------|
+| Cast manuel dans `$casts` | Cast automatique via `AttributeProxy` |
+| Logique de transformation répétée | Logique centralisée |
+| Code boilerplate | Code propre et lisible |
+| Pas de typage fort | Typage fort (VO, Record, Collection) |
+
+### TransformableProxy
+
+`TransformableProxy` est le cœur du système. Il hydrate un objet `Transformable` depuis n'importe quelle source (string, array, JSON).
+
+```php
+use AndyDefer\Repository\Proxies\TransformableProxy;
+
+// Depuis une string
+$slug = TransformableProxy::make(SlugVO::class, 'my-article');
+
+// Depuis un tableau
+$user = TransformableProxy::make(UserRecord::class, [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+]);
+
+// Depuis du JSON
+$coordinates = TransformableProxy::make(
+    CoordinatesVO::class,
+    '{"latitude":48.8566,"longitude":2.3522}'
+);
+```
+
+**Signature :**
+```php
+public static function make(
+    string $class,   // class-string<T> - La classe cible (doit implémenter Transformable)
+    mixed $value,    // La source de données (string, array, JSON, etc.)
+    bool $nullable = false // Si true, retourne null quand $value est null
+): mixed
+```
+
+### AttributeProxy
+
+`AttributeProxy` est un helper pour créer des attributs Eloquent typés. Il utilise `TransformableProxy` en interne.
+
+```php
+use AndyDefer\Repository\Proxies\AttributeProxy;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
+// Attribut nullable (retourne null si la colonne est null)
+protected function slug(): Attribute
+{
+    return AttributeProxy::nullable(SlugVO::class, column: 'slug');
+}
+
+// Attribut required (lance une exception si la colonne est null)
+protected function coordinates(): Attribute
+{
+    return AttributeProxy::required(CoordinatesVO::class, column: 'coordinates');
+}
+```
+
+**Méthodes disponibles :**
+
+| Méthode | Description | Utilisation |
+|---------|-------------|-------------|
+| `required(string $class, ?string $column = null)` | Attribut requis | `AttributeProxy::required(SlugVO::class, column: 'slug')` |
+| `nullable(string $class, ?string $column = null)` | Attribut nullable | `AttributeProxy::nullable(SlugVO::class, column: 'slug')` |
+| `make(string $class, bool $nullable = false, ?string $column = null)` | Déprécié | Utiliser `required()` ou `nullable()` à la place |
+
+### Exemple complet d'utilisation
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use AndyDefer\PhpVo\ValueObjects\SlugVO;
+use AndyDefer\PhpVo\ValueObjects\CoordinatesVO;
+use AndyDefer\Repository\Proxies\AttributeProxy;
+use AndyDefer\Repository\Tests\Fixtures\Records\TestUserRecord;
+use AndyDefer\Repository\Tests\Fixtures\Collections\TestLanguageCollection;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Model;
+
+final class Article extends Model
+{
+    protected $table = 'articles';
+
+    protected $fillable = [
+        'title',
+        'slug',
+        'content',
+        'coordinates',
+        'metadata',
+        'languages',
+    ];
+
+    protected $casts = [
+        'metadata' => 'array',
+        'languages' => 'array',
+    ];
+
+    /**
+     * Cast le slug en SlugVO.
+     */
+    protected function slug(): Attribute
+    {
+        return AttributeProxy::nullable(SlugVO::class, column: 'slug');
+    }
+
+    /**
+     * Cast les coordonnées en CoordinatesVO.
+     */
+    protected function coordinates(): Attribute
+    {
+        return AttributeProxy::required(CoordinatesVO::class, column: 'coordinates');
+    }
+
+    /**
+     * Cast les métadonnées en UserRecord.
+     */
+    protected function userRecord(): Attribute
+    {
+        return AttributeProxy::nullable(TestUserRecord::class, column: 'metadata');
+    }
+
+    /**
+     * Cast les langues en LanguageCollection.
+     */
+    protected function languages(): Attribute
+    {
+        return AttributeProxy::nullable(TestLanguageCollection::class, column: 'languages');
+    }
+}
+
+// Utilisation
+$article = Article::create([
+    'title' => 'Mon article',
+    'slug' => 'mon-article',
+    'coordinates' => ['latitude' => 48.8566, 'longitude' => 2.3522],
+    'languages' => ['fr', 'en'],
+]);
+
+// Les attributs sont automatiquement hydratés
+echo $article->slug->getValue();        // 'mon-article'
+echo $article->coordinates->getLatitude(); // 48.8566
+echo $article->languages->count();      // 2
+
+// Mise à jour avec des objets
+$article->slug = new SlugVO('nouveau-slug');
+$article->save();
+```
+
+### Classes compatibles
+
+`AttributeProxy` fonctionne avec :
+
+| Type | Exemple | Condition |
+|------|---------|-----------|
+| **Value Object** | `SlugVO`, `EmailVO`, `Money` | Doit implémenter `Transformable` |
+| **Record** | `UserRecord`, `OrderRecord` | Étend `AbstractRecord` (qui implémente `Transformable`) |
+| **Collection** | `LanguageCollection` | Étend `TypedCollection` et implémente `Transformable` |
+| **Enum** | `UserStatus`, `UserRole` | Enum PHP (n'implémente pas `Transformable`) |
+
+### Bonnes pratiques avec les Proxies
+
+#### 1. Utiliser `required()` ou `nullable()` selon le besoin
+
+```php
+// ✅ BON - Attribut requis
+protected function slug(): Attribute
+{
+    return AttributeProxy::required(SlugVO::class, column: 'slug');
+}
+
+// ✅ BON - Attribut nullable
+protected function slug(): Attribute
+{
+    return AttributeProxy::nullable(SlugVO::class, column: 'slug');
+}
+```
+
+#### 2. Spécifier le nom de colonne quand il est différent
+
+```php
+// ✅ BON - Colonne explicite
+protected function userRecord(): Attribute
+{
+    return AttributeProxy::nullable(UserRecord::class, column: 'metadata');
+}
+
+// ✅ BON - Colonne avec le même nom que la méthode
+protected function slug(): Attribute
+{
+    return AttributeProxy::nullable(SlugVO::class, column: 'slug');
+}
+```
+
+#### 3. Ne pas mélanger avec `$casts`
+
+```php
+// ✅ BON - Un attribut dans le cast ou via AttributeProxy, pas les deux
+protected $casts = [
+    'metadata' => 'array',  // Garder pour les données brutes
+    'languages' => 'array',
+];
+
+protected function userRecord(): Attribute
+{
+    // Utilise le cast 'array' pour récupérer les données brutes
+    return AttributeProxy::nullable(UserRecord::class, column: 'metadata');
+}
+
+// ❌ MAUVAIS - Doublon de cast
+protected $casts = [
+    'metadata' => 'array',  // Déjà casté
+];
+
+protected function metadata(): Attribute
+{
+    // Un autre cast sur la même colonne → conflit !
+    return AttributeProxy::nullable(UserRecord::class, column: 'metadata');
+}
+```
+
+#### 4. Toujours utiliser `AttributeProxy` dans les modèles
+
+```php
+// ✅ BON - Utiliser AttributeProxy
+protected function slug(): Attribute
+{
+    return AttributeProxy::nullable(SlugVO::class, column: 'slug');
+}
+
+// ❌ MAUVAIS - Logique manuelle dans l'attribut
+protected function slug(): Attribute
+{
+    return Attribute::make(
+        get: fn ($value) => $value ? new SlugVO($value) : null,
+        set: fn ($value) => $value instanceof SlugVO ? $value->getValue() : $value,
+    );
+}
+```
+
+#### 5. Vérifier les types dans les tests
+
+```php
+public function test_slug_attribute_returns_vo(): void
+{
+    $user = TestUser::create(['slug' => 'john-doe']);
+    
+    $this->assertInstanceOf(SlugVO::class, $user->slug);
+    $this->assertSame('john-doe', $user->slug->getValue());
+}
+
+public function test_nullable_attribute_returns_null(): void
+{
+    $user = TestUser::create(['slug' => null]);
+    
+    $this->assertNull($user->slug);
+}
+```
+
+### Erreurs fréquentes avec les Proxies
+
+#### Erreur 1 : Classe non Transformable
+
+❌ **Mauvais**
+```php
+protected function custom(): Attribute
+{
+    return AttributeProxy::nullable(\stdClass::class, column: 'data');
+}
+// InvalidArgumentException: Class stdClass must implement Transformable interface
+```
+
+✅ **Bon**
+```php
+protected function custom(): Attribute
+{
+    return AttributeProxy::nullable(MyRecord::class, column: 'data');
+}
+```
+
+#### Erreur 2 : Conflit avec $casts
+
+❌ **Mauvais**
+```php
+protected $casts = [
+    'metadata' => ClusterCast::class,
+];
+
+protected function userRecord(): Attribute
+{
+    return AttributeProxy::nullable(UserRecord::class, column: 'metadata');
+}
+// Conflit : metadata est déjà casté en ClusterVO
+```
+
+✅ **Bon**
+```php
+protected $casts = [
+    'metadata' => 'array',  // ← Garder brut
+];
+
+protected function userRecord(): Attribute
+{
+    return AttributeProxy::nullable(UserRecord::class, column: 'metadata');
+}
+```
+
+#### Erreur 3 : Valeur null avec required()
+
+❌ **Mauvais**
+```php
+protected function coordinates(): Attribute
+{
+    return AttributeProxy::required(CoordinatesVO::class, column: 'coordinates');
+}
+
+$model = TestModel::create(['coordinates' => null]);
+// InvalidArgumentException: Value cannot be null
+```
+
+✅ **Bon**
+```php
+protected function coordinates(): Attribute
+{
+    return AttributeProxy::nullable(CoordinatesVO::class, column: 'coordinates');
+}
+```
+
+---
+
 ## Bonnes pratiques
 
 ### 1. Un Record par Entité
@@ -930,3 +1274,4 @@ $deletedCount = $repository
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
+```
