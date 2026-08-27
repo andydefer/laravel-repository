@@ -17,7 +17,7 @@ return new class extends Migration
             $table->integer('stock')->default(0);
             $table->boolean('is_active')->default(true);
             $table->json('metadata')->nullable();
-
+            $table->string('status')->nullable()->default('draft')->after('stock');
             $table->softDeletes();
             $table->timestamps();
         });

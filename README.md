@@ -1,6 +1,6 @@
 # Laravel Repository
 
-**Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records et Eloquent.**
+**Une implémentation légère et typée du pattern Repository pour Laravel avec intégration Records, Eloquent et Enum Casting.**
 
 [![Version PHP](https://img.shields.io/badge/PHP-8.1%2B-blue)](https://php.net)
 [![Version Laravel](https://img.shields.io/badge/Laravel-12.x%20|%2013.x%20|%2014.x%20|%2015.x-blue)](https://laravel.com)
@@ -13,12 +13,13 @@
 1. [Installation](#installation)
 2. [Concepts fondamentaux](#concepts-fondamentaux)
 3. [Créer votre premier Repository](#créer-votre-premier-repository)
-4. [Référence de l'API](#référence-de-lapi)
-5. [Méthodes à surcharger](#méthodes-à-surcharger)
-6. [Proxies - AttributeProxy et TransformableProxy](#proxies---attributeproxy-et-transformableproxy)
-7. [Bonnes pratiques](#bonnes-pratiques)
-8. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
-9. [Licence](#licence)
+4. [Enum Cast - Cast automatique des enums](#enum-cast---cast-automatique-des-enums)
+5. [Référence de l'API](#référence-de-lapi)
+6. [Méthodes à surcharger](#méthodes-à-surcharger)
+7. [Proxies - AttributeProxy et TransformableProxy](#proxies---attributeproxy-et-transformableproxy)
+8. [Bonnes pratiques](#bonnes-pratiques)
+9. [Exemple complet avec filtres complexes](#exemple-complet-avec-filtres-complexes)
+10. [Licence](#licence)
 
 ---
 
@@ -326,6 +327,151 @@ $merged = $queries->merge($otherQueries);
 
 ---
 
+## Enum Cast - Cast automatique des enums
+
+Le package fournit un cast Eloquent générique `EnumCast` qui permet de mapper automatiquement des colonnes de base de données vers des enums personnalisés.
+
+### Configuration
+
+```php
+// config/repository.php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Enum Casts
+    |--------------------------------------------------------------------------
+    |
+    | Define enum casts for specific tables and columns.
+    | Each entry maps a table name and column to an enum class.
+    |
+    | The enum class must implement EnumerableInterface.
+    |
+    | Example:
+    | 'enum_casts' => [
+    |     'likes' => [
+    |         'type' => AndyDefer\LaravelLikes\Enums\LikeType::class,
+    |     ],
+    |     'signalements' => [
+    |         'type' => App\Enums\SignalementType::class,
+    |         'status' => App\Enums\SignalementStatus::class,
+    |     ],
+    | ],
+    |
+    */
+    'enum_casts' => [],
+];
+```
+
+### Interface EnumerableInterface
+
+Tous les enums utilisés avec `EnumCast` doivent implémenter `EnumerableInterface` :
+
+```php
+use AndyDefer\Repository\Contracts\EnumerableInterface;
+
+enum ProductStatus: string implements EnumerableInterface
+{
+    case DRAFT = 'draft';
+    case PUBLISHED = 'published';
+    case ARCHIVED = 'archived';
+    case OUT_OF_STOCK = 'out_of_stock';
+
+    public function getValue(): string
+    {
+        return $this->value;
+    }
+
+    public function getLabel(): string
+    {
+        return match ($this) {
+            self::DRAFT => 'Brouillon',
+            self::PUBLISHED => 'Publié',
+            self::ARCHIVED => 'Archivé',
+            self::OUT_OF_STOCK => 'Rupture de stock',
+        };
+    }
+}
+```
+
+### Utilisation dans le modèle
+
+```php
+use AndyDefer\Repository\Casts\EnumCast;
+use Illuminate\Database\Eloquent\Model;
+
+class Product extends Model
+{
+    protected $casts = [
+        'status' => EnumCast::class,
+    ];
+}
+```
+
+### Exemple complet
+
+```php
+// 1. Configurer
+// config/repository.php
+'enum_casts' => [
+    'products' => [
+        'status' => ProductStatus::class,
+    ],
+],
+
+// 2. Créer l'enum
+enum ProductStatus: string implements EnumerableInterface
+{
+    case DRAFT = 'draft';
+    case PUBLISHED = 'published';
+    case ARCHIVED = 'archived';
+
+    public function getValue(): string
+    {
+        return $this->value;
+    }
+
+    public function getLabel(): string
+    {
+        return match ($this) {
+            self::DRAFT => 'Brouillon',
+            self::PUBLISHED => 'Publié',
+            self::ARCHIVED => 'Archivé',
+        };
+    }
+}
+
+// 3. Modèle
+class Product extends Model
+{
+    protected $casts = [
+        'status' => EnumCast::class,
+    ];
+}
+
+// 4. Utilisation
+$product = Product::create([
+    'name' => 'Laptop',
+    'status' => 'published',
+]);
+
+echo $product->status->getLabel(); // 'Publié'
+
+$product->status = ProductStatus::ARCHIVED;
+$product->save();
+
+echo $product->status->getValue(); // 'archived'
+```
+
+### Fonctionnement du cast
+
+| Opération | Comportement |
+|-----------|--------------|
+| **Lecture (get)** | Convertit la valeur string/int de la base de données en instance de l'enum configuré via `tryFrom()` |
+| **Écriture (set)** | Accepte une instance de `EnumerableInterface` ou une string/int et la convertit en valeur de base de données |
+
+---
+
 ## Créer votre premier Repository
 
 ### 1. Créer le Modèle
@@ -602,6 +748,7 @@ class UserService
 | `ModelNotFoundException` | `update()` ou `updateRaw()` sur un ID inexistant |
 | `InvalidArgumentException` | Nom de colonne invalide dans `SelectColumns` ou `SortColumns` |
 | `InvalidArgumentException` | Syntaxe de requête cluster invalide |
+| `InvalidArgumentException` | Valeur enum non valide dans `EnumCast` |
 
 ---
 
@@ -1274,4 +1421,3 @@ $deletedCount = $repository
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
-```
